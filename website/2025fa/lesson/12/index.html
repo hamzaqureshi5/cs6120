@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Dynamic Compilers</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 12:
+  Dynamic Compilers
+  
+</h1>
+<ul class="links">
+  
+  <li>
+    <a href="https://github.com/sampsyo/cs6120/discussions/562" class="icon discussion">discussion thread</a>
+  </li>
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_ltb1t94i" class="icon video">Dynamic Compilers</a>
+  </li>
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_nk1o4hzm" class="icon video">Tracing via Speculation</a>
+  </li>
+  
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;youtu.be&#x2F;tWvaSkgVPpA" class="icon reading">talk video on the history of JITs</a>
+    
+    <br>by JF Bastien at CppCon 2020
+    
+  </li>
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;tlbh.it&#x2F;004_trace_compilers.html" class="icon reading">TLB Hit podcast, epsiode 4</a>
+    
+    <br>an episode all about tracing
+    
+  </li>
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>November 20</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_ltb1t94i" allowfullscreen></iframe>
+  </div>
+
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_nk1o4hzm" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<h3 id="motivation">Motivation</h3>
+<p>So far, the compilers you have written in 6120 have been <em>ahead-of-time</em> (AOT) or <em>static</em> compilers: they compile the code to some other form in one phase, and then execution happens later—and has nothing to do with the compiler.
+<em>Just-in-time</em> (JIT) or <em>dynamic</em> compilers mix together compilation and execution: they translate your code when it’s time to run it, so they are intimately involved in program execution.</p>
+<p>Why would you want a dynamic compiler? There are two main reasons:</p>
+<ul>
+<li>JITs have access to information that static compilers do not. They can compile programs knowing something about how often a given branch is taken, which type a variable has, or even detailed statistics about the inputs the program is dealing with. In other words, JITs get to do <em>profile-guided optimization</em>, which is also possible in the AOT world but less convenient (because it requires an extra, slow-running phase during compilation) and less accurate (because it relies on the assumption that the inputs and program behavior during profiling are close to the behavior in deployment).</li>
+<li>Some kinds of languages <em>really</em> benefit from exploiting that run-time information. In particular, <a href="https://en.wikipedia.org/wiki/Dynamic_programming_language">dynamic languages</a> like JavaScript, Python, and Ruby are absurdly popular—and their semantics make it really hard for AOT compilers to produce efficient code. For example, the expression <code>a + b</code> in Python in general requires looking up and invoking up a method called <a href="https://docs.python.org/3/reference/datamodel.html#object.__add__"><code>__add__</code></a> in the object <code>a</code>. If we could somehow know that <code>a</code> and <code>b</code> were both <code>float</code> values, we could conceivably implement it instead with a single CPU instruction. But Python makes it very hard to know statically what the types of variables are. A JIT compiler can profile the actual dynamic execution to determine what these types are and then use them to generate far better code.</li>
+</ul>
+<h3 id="terminology-nitpicking">Terminology Nitpicking</h3>
+<p>Here are some semi-related terminology rants:</p>
+<ul>
+<li>You may have heard of something called “interpreted languages.”
+There is no such thing: languages do not have an intrinsic property that makes them interpreted or compiled.
+You can implement Rust in an interpreter, Python with an AOT compiler, or C++ with a JIT.
+When people say “interpreted language,” they usually mean “a language for which it is hard to write a high-quality compiler.”</li>
+<li>Interpretation vs. compilation is a spectrum.
+For example, we usually think of <a href="https://github.com/python/cpython">CPython</a> as an interpreter rather than a compiler, but it actually has a compilation step:
+it translates Python programs into a more regular <a href="https://docs.python.org/3/library/dis.html">bytecode</a> representation and then interprets that, which is both simpler and more efficient than interpreting the full Python AST.
+That’s quite different, of course, from a full-blown JIT like <a href="https://www.pypy.org">PyPy</a> that translates even farther to actual machine instructions.
+While plain interpreters are common in CS homework, they are pretty rare in the real world—bytecode interpreters with a first-stage JIT compiler are much more common.</li>
+</ul>
+<p>Another <a href="https://mastodon.social/@cfbolz/115429061449688876#.">good example</a> of this blurriness is that Clang contains a bytecode interpreter for C++.
+It uses this to implement <a href="https://iamsorush.com/posts/cpp-constexpr/">the <code>constexpr</code> feature</a> that was added in C++11.
+Here’s <a href="https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:&#x27;1&#x27;,fontScale:14,fontUsePx:&#x27;0&#x27;,j:1,lang:c%2B%2B,selection:(endColumn:2,endLineNumber:12,positionColumn:2,positionLineNumber:12,selectionStartColumn:2,selectionStartLineNumber:12,startColumn:2,startLineNumber:12),source:&#x27;int+constexpr+fib(int+n)+%7B%0A++++if+(n+%3C%3D+1)+%7B%0A++++++++return+1%3B%0A++++%7D+else+%7B%0A++++++++return+fib(n+-+1)+%2B+fib(n+-+2)%3B%0A++++%7D%0A%7D%0A%0Aint+example()+%7B%0A++++constexpr+int+res+%3D+fib(8)%3B%0A++++return+res%3B%0A%7D&#x27;),l:&#x27;5&#x27;,n:&#x27;0&#x27;,o:&#x27;C%2B%2B+source+%231&#x27;,t:&#x27;0&#x27;)),k:50,l:&#x27;4&#x27;,n:&#x27;0&#x27;,o:&#x27;&#x27;,s:0,t:&#x27;0&#x27;),(g:!((h:output,i:(compilerName:&#x27;armv8-a+clang+(trunk)&#x27;,editorid:1,fontScale:14,fontUsePx:&#x27;0&#x27;,j:1,wrap:&#x27;1&#x27;),l:&#x27;5&#x27;,n:&#x27;0&#x27;,o:&#x27;Output+of+armv8-a+clang+21.1.0+(Compiler+%231)&#x27;,t:&#x27;0&#x27;)),header:(),k:25,l:&#x27;4&#x27;,n:&#x27;0&#x27;,o:&#x27;&#x27;,s:0,t:&#x27;0&#x27;),(g:!((h:compiler,i:(compiler:armv8-clang2110,filters:(b:&#x27;0&#x27;,binary:&#x27;1&#x27;,binaryObject:&#x27;1&#x27;,commentOnly:&#x27;0&#x27;,debugCalls:&#x27;1&#x27;,demangle:&#x27;0&#x27;,directives:&#x27;0&#x27;,execute:&#x27;1&#x27;,intel:&#x27;0&#x27;,libraryCode:&#x27;0&#x27;,trim:&#x27;1&#x27;,verboseDemangling:&#x27;0&#x27;),flagsViewOpen:&#x27;1&#x27;,fontScale:14,fontUsePx:&#x27;0&#x27;,j:1,lang:c%2B%2B,libs:!(),options:&#x27;-O2&#x27;,overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:&#x27;5&#x27;,n:&#x27;0&#x27;,o:&#x27;+armv8-a+clang+21.1.0+(Editor+%231)&#x27;,t:&#x27;0&#x27;)),k:25,l:&#x27;4&#x27;,n:&#x27;0&#x27;,o:&#x27;&#x27;,s:0,t:&#x27;0&#x27;)),l:&#x27;2&#x27;,n:&#x27;0&#x27;,o:&#x27;&#x27;,t:&#x27;0&#x27;)),version:4">a simple example of <code>constexpr</code> doing its thing</a>.
+As <a href="https://mastodon.social/@cfbolz/115429061449688876#.">CF Bolz-Tereick observes</a>, this leads to a funny situation where Clang, a C++ compiler, contains an interpreter for C++, which in turn contains <em>another</em> compiler to bytecode.
+There is an equally funny corollary that Clang compiler engineers <a href="https://developers.redhat.com/articles/2025/10/15/clang-bytecode-interpreter-update#libc___testing">must now care about interpreter performance</a>.</p>
+<h3 id="anatomy-of-a-jit">Anatomy of a JIT</h3>
+<p>Here’s what you need to make a basic JIT:</p>
+<ul>
+<li>An interpreter (or another “cheap” way to run the code, like a simple non-optimizing compiler). Your JIT will start the lifecycle by interpreting the code and collecting basic statistics, like the number of times a function or loop body runs.</li>
+<li>A heuristic to detect “hotness.” When your JIT finds that a function or loop or something is hot (i.e., seems to run a lot), it’s time to do more optimization.</li>
+<li>A profiler. When you decide that some code is worth optimizing farther, you can afford to spend some time collecting more information about its execution that you can use during optimization. This is usually a different mode in your interpreter that runs more slowly but collects more detailed information, like the types of values and the directions of every branch.</li>
+<li>An optimizing compiler. This component can be just like any AOT compiler, except that it also gets to use the information from the profiling step. Usually, though, you will want to generate code that checks that the assumptions from the profiler still hold: that the types are still the same as during profiling, for example. These checks are often called <em>guards</em>.</li>
+<li>Ways to switch between interpretation and execution of compiled code.
+<ul>
+<li>Your JIT needs to detect when the interpreter reaches a function that has previously been compiled, for example, and call that pre-compiled code instead.</li>
+<li>And when compiled code’s guards fail (when the compiled code relies on assumptions that eventually do not hold), the JIT needs to switch back to interpretation. Falling back from the compiler to the interpreter is called <em>deoptimization</em>.</li>
+<li>Switching between the two modes of execution requires somehow mapping between the different formats they use for program state in a process called <em>on-stack replacement</em> if it can happen in the middle of a function execution.</li>
+</ul>
+</li>
+</ul>
+<p>Refining things further, there are two main strategies for JIT compilation:</p>
+<ul>
+<li><em>Method JITs</em> are the “normal” kind: they compile a function at a time, once they determine that the function has become hot enough. (I don’t really know how these got that name instead of “function JIT,” which would be much more sensible. But I think it’s probably because of how closely associated JIT compilation and Java, which insists on always calling them “methods.”)</li>
+<li><em>Tracing JITs</em> are very different: they extract possibly-interprocedural hot <em>paths</em> through the program’s control flow and compile those.</li>
+</ul>
+<p>One final dimension in the JIT design space is <em>tiering</em>.
+You can think of the interpreter and the compiler in the basic recipe above as different optimization tiers: one that’s fast to get started with but slow to execute, and one that’s slower to start up but makes actual execution go much faster.
+To further mitigate the trade-off between startup (compilation) time and steady-state (execution) performance, modern JITs often use many more than two tiers:
+an interpreter and a whole suite of different compilers, from quick and dirty to slow and awesome.
+For example, see this <a href="https://webkit.org/blog/3362/introducing-the-webkit-ftl-jit/">fairly old blog post from the JavaScriptCore developers</a> that breaks down the three tiers they had in 2014 and motivated the addition of their fourth tier.</p>
+<h3 id="a-bit-more-on-tracing">A Bit More on Tracing</h3>
+<p>As an example, let’s try tracing this program:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>function main(x) {
+</span><span>  y = x + 1;
+</span><span>  if (x &lt; 100) {
+</span><span>    z = f(y);
+</span><span>  } else {
+</span><span>    z = g(y);
+</span><span>  }
+</span><span>  return z;
+</span><span>}
+</span><span>
+</span><span>function f(a) {
+</span><span>  return a - 1;
+</span><span>}
+</span></code></pre>
+<p>Don’t worry about <code>g</code>; we won’t use it in this walkthrough.</p>
+<p>Imagine that we have decided that the <code>main</code> function is hot enough to warrant compiling.
+The general JIT idea is that we’ll execute it once and emit some code that optimizes for the case that future executions will be similar to the one we observe.
+In a tracing JIT specifically, the plan is to produce code for the <em>single</em> path through the CFG that the execution takes for that given input, rather than trying to compile the entire function.</p>
+<p>So say that we run <code>main(42)</code>.
+Then as we trace execution, we will first run:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>y = x + 1;
+</span></code></pre>
+<p>And we start building our trace by emitting exactly the same code.
+We next need to trace the condition, <code>x &lt; 100</code>.
+Because the condition is true in this execution, we want to emit a trace that <em>assumes</em> that it will be true—i.e., it only includes the code for the “then” branch of this <code>if</code>.
+But we also want our emitted trace to check that this assumption still holds.
+To do this, we’ll emit a special <code>guard</code> statement in our trace that “bails out” to deoptimization if the condition does not hold.
+So our trace after this step looks like:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>y = x + 1;
+</span><span>guard(x &lt; 100);
+</span></code></pre>
+<p>We can continue tracing in the appropriate branch of the <code>if</code>.
+Let’s try an intraprocedural style first—we can just copy and paste the code as we execute it, appending it to the end of the trace:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>y = x + 1;
+</span><span>guard(x &lt; 100);
+</span><span>z = f(y);
+</span><span>return z;
+</span></code></pre>
+<p>This completes the trace from the entry of <code>main</code>.
+In a proper JIT, we could then compile this straight-line (modulo <code>guard</code>s) code to machine instructions.
+Whenever execution reaches the top of <code>main</code> in the future, we can jump to this code instead of interpreting the function.
+If the <code>guard</code> fails, we will need to deoptimize—returning to slower, correct execution.</p>
+<p>In this trace, we “stepped over” the invocation of <code>f</code>—but an even more convenient thing to do is to trace interprocedurally, following the control flow through the call.
+That would produce an even simpler trace like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>y = x + 1;
+</span><span>guard(x &lt; 100);
+</span><span>a = y;
+</span><span>z = a - 1;
+</span><span>return z;
+</span></code></pre>
+<p>The nice thing about tracing is that it produces straight-line code that can be very amenable to optimization.
+This code doesn’t modify variables (it happens to be in SSA form), for example, so it’s safe to reorder things—importantly, we can put the <code>guard</code> up front to fail fast:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>guard(x &lt; 100);
+</span><span>y = x + 1;
+</span><span>a = y;
+</span><span>z = a - 1;
+</span><span>return z;
+</span></code></pre>
+<p>Then a simple <a href="../3/index.html">LVN pass with canonicalization</a> can clean things up quite a bit:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>guard(x &lt; 100);
+</span><span>return x;
+</span></code></pre>
+<p>So in the case where this trace applies, i.e., <code>x</code> is less than 100, we can eliminate code that would be necessary in a more straightforward compilation.</p>
+<h2 id="tasks">Tasks</h2>
+<p>The task is to implement a trace-based speculative optimizer for Bril.
+You’ll implement the same concept as in a tracing JIT, but in a profile-guided AOT setting: profiling, transformation, and execution will be distinct phases.
+The idea is to implement the “heavy lifting” for a trace-based JIT without needing all the scaffolding that a complete JIT requires, such as <a href="http://prl.ccs.neu.edu/blog/2019/01/28/on-stack-replacement/">on-stack replacement</a>.</p>
+<p>Concretely, there are three main phases:</p>
+<ul>
+<li>Modify the <a href="https://capra.cs.cornell.edu/bril/tools/interp.html">reference interpreter</a> to produce traces.</li>
+<li>Build an optimizer that injects traces back into the original program using the <a href="https://capra.cs.cornell.edu/bril/lang/spec.html">speculation extension</a> to provide a “fast path.”</li>
+<li>Check that the whole process is correct and had <em>some</em> effect on performance (it needn’t actually be good!).</li>
+</ul>
+<p>Start by reading the <a href="https://capra.cs.cornell.edu/bril/lang/spec.html">documentation for the speculation extension</a> (and watch the video!).
+That should give you an idea of what’s required to augment a program with a speculative execution of an extracted trace.
+Then make a plan for how you’ll hack the interpreter to produce one of those traces.</p>
+<p>Here’s a recipe:</p>
+<ul>
+<li>Start interpreting normally.</li>
+<li>At some point during execution (at the very beginning of <code>main</code>, for example, or when reaching a backedge), start tracing.</li>
+<li>While tracing, record every instruction as it executes. Eliminate jumps; replace branches with <code>guard</code> instructions. Feel free to do the interprocedural version, and to bail out on any other instruction you don’t want to handle.</li>
+<li>Stop tracing at some point (after a fixed number of instructions, for example, or at the next backedge) and save the trace to a file.</li>
+<li>For bonus “points,” statically optimize the trace by eliminating instructions that depend on foregone conclusions enforced by guards.</li>
+<li>Transform the program to stitch the trace back into the program using <code>speculate</code> and <code>commit</code> instructions.</li>
+</ul>
+<p>For these tasks, unlike some previous lessons, I recommend <em>not</em> attempting to support all the benchmarks.
+It’s more important that you understand a few programs well than you apply your transformation to a large body of code.
+(In other words, I recommend that you work depth-first instead of breadth-first.)</p>
+<p>In particular, you do not need to support Bril’s <a href="https://capra.cs.cornell.edu/bril/lang/memory.html">memory extension</a>, which makes things more complicated because it doesn’t get automatically rolled back on speculation aborts.
+If you are feeling <em>very</em> ambitious, you can try devising a scheme to manually roll back memory modifications on aborts (consider an “undo log” or “redo log,” which are concepts from databases).</p>
+<p>Finally, evaluate your work:</p>
+<ul>
+<li>Check that you didn’t break programs. For at least one benchmark (and ideally a few), create multiple inputs to the program that result in different outputs. Use one input to generate the trace and optimize the program, and use other inputs to check correctness. This approach guards against cases where your tracing optimization “overfits” and you end up with code that only works on one input.</li>
+<li>Measure performance impact, i.e., the effect of your transformation on the dynamic instruction count. Again, for at least one benchmark, use at least two inputs to evaluate tracing’s impact on executions that are not identical to the traced execution. If you implemented optimizations on the traced code, consider comparing the optimized vs. unoptimized versions. (It’s OK if your tracing apparatus makes programs slower, especially on unseen inputs! We just want to measure the difference.)</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: From Allo to XLS: Bridging Hardware Accelerator DSLs Through Traditional Compilation to ASIC Backends</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="From Allo to XLS: Bridging Hardware Accelerator DSLs Through Traditional Compilation to ASIC Backends">
+<meta property="og:description"
+    content="Hardware accelerator design increasingly relies on portable compilation flows that can target diverse backends without extensive manual retargeting. This project explores building a compilation pathway from Allo, a Pythonic MLIR-based hardware accelerator DSL, to Google’s XLS hardware synthesis ASIC backend.
+Our compiler implements lowering passes from Allo’s intermediate representation to both DSLX (XLS’s Rust-inspired hardware DSL) and XLS IR.
+We focus on two major compilation challenges:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="../index.html">
+    The CS 6120 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>From Allo to XLS: Bridging Hardware Accelerator DSLs Through Traditional Compilation to ASIC Backends</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Cynthia Shao,
+      
+        Nikil Shyamsunder
+      
+      <span>
+    
+    <time datetime="2025-12-16">
+      December 16, 2025
+    </time>
+  </p>
+  <p>Hardware accelerator design increasingly relies on portable compilation flows that can target diverse backends without extensive manual retargeting. This project explores building a compilation pathway from <a href="https://github.com/cornell-zhang/allo">Allo</a>, a Pythonic <a href="https://mlir.llvm.org/">MLIR</a>-based hardware accelerator DSL, to <a href="https://google.github.io/xls/">Google’s XLS hardware synthesis</a> ASIC backend.</p>
+<p>Our compiler implements lowering passes from Allo’s intermediate representation to both DSLX (XLS’s Rust-inspired hardware DSL) and XLS IR.</p>
+<p>We focus on two major compilation challenges:</p>
+<ol>
+<li><strong>Feedforward function lowering</strong>: Translating imperative Allo kernels with mutable memory into XLS’s pure-dataflow (<code>fn</code>) representations.</li>
+<li><strong>Systolic array generation</strong>: Mapping more complex Allo kernels with special customization and scheduling constructs to XLS’s stateful <code>proc</code> representation that models hardware as Kahn process networks with FIFO channel communication. To make this problem tractable for the purposes of a course project, we focus specifically on systolic arrays for matrix multiplication.</li>
+</ol>
+<p>We split this goal into a few benchmarks:</p>
+<p><strong>Stage 1: Naive Matrix Multiplication</strong><br />
+Direct triple-nested loop with reduction over the shared inner dimension. This established the basic lowering pathway: loops, types, indexing, etc. from Allo IR into DSLX or XLS IR.</p>
+<p><strong>Stage 2: Optimized Matrix Multiply Kernels</strong><br />
+Tiled, reordered, and pipelined variants that Allo can express. These introduced loop tiling and reordering transformations, as well as handling Allo kernel compositions. This demonstrated our backend could handle realistic optimization styles.</p>
+<p><strong>Stage 3: Small Fixed-Size Systolic Arrays</strong><br />
+A 2×2 grid of processing elements representing Allo’s dataflow patterns. This required recognizing local data movement through FIFOs and mapping to XLS procs connected through channels.</p>
+<p>We originally wanted to commit to supporting: static loop nests, reductions, simple grid loops, temporary buffers, and basic arithmetic over various integer and float types. While we were able to hit most of these, our current implementation only supports <code>u32</code> for types in <code>fn</code> lowering, and due to limited support for memory integration XLS, we decided against handling memory optimizations.</p>
+<h2 id="implementation">Implementation</h2>
+<p>The full implementation is open source <a href="https://github.com/Nikil-Shyamsunder/allo-xls-backend/blob/main/allo/backend/xls/README.md">here</a>.</p>
+<h3 id="feedforward-function-lowering-source-to-dslx">Feedforward Function Lowering (Source to DSLX)</h3>
+<p>DSLX functions served as our initial compilation target, providing a high-level functional representation within the XLS ecosystem. DSLX functions are fully unrolled and turned into pure dataflow that can be pipelined by the XLS compiler. We started with source to DSLX (partially because the Allo MLIR is quite similar in structure to DSLX, and partially because we were struggling to build XLS from source initially and the available binaries included the DSLX interpreter, but not the IR interpreter).</p>
+<p>Our lowering pass implements an AST-mediated translation in two phases. First, the <code>MlirToDslxLowerer</code> class walks the MLIR function body, dispatching each operation to specialized lowering methods that construct an intermediate abstract syntax tree. A <code>CodegenContext</code> object tracks MLIR-to-AST value bindings, memref shapes, and loop nesting structure. Only after the entire function transforms into AST form do we recursively generate the serialized DSLX.</p>
+<p>Below is a visualization of an example flow from Allo MLIR excerpt through to AST, which emits DSLX code via a serializer.
+<img src="https://www.cs.cornell.edu/courses/cs6120/2025fa/blog/allo-xls-backend/mlir-dslx-flow.png" alt="mlir dslx flow diagram" width="310"/></p>
+<h3 id="xls-ir-lowering">XLS IR Lowering</h3>
+<p>XLS IR serves as an alternative, lower-level compilation target. Unlike DSLX, which requires parsing and compilation, XLS IR can be directly interpreted or JIT-compiled using XLS’s <code>eval_ir_main</code> tool. XLS IR is a pure dataflow representation in SSA form. Because of the regularity of the IR, we can generate this code while we walk the MLIR, without having to create an in-memory AST, simplifying the flow.</p>
+<p>Where DSLX preserves loop structure through functional for-expressions, XLS IR eliminates loops entirely through unrolling. Multi-dimensional arrays are represented as one-dimensional arrays in XLS IR, requiring explicit linearization. For a 2D memref of shape N×M, a load <code>affine.load %A[%i, %j]</code> translates to computing <code>linear_idx = i * M + j</code>, then <code>array_index(A, indices=[linear_idx])</code>. Array updates are more intricate, and for each store we generate a fresh array name, and the lowerer must rebind all subsequent references.</p>
+<h3 id="systolic-array-generation-method-1">Systolic Array Generation (Method 1)</h3>
+<p>XLS organizes computation as communicating processes based on Kahn process network semantics. A <code>proc</code> represents a stateful concurrent process with three components:</p>
+<ul>
+<li>A <code>config</code> function declaring and wiring communication channels</li>
+<li>An <code>init</code> function establishing initial state values</li>
+<li>A <code>next</code> function implementing a single state transition by consuming inputs, updating state, and producing outputs</li>
+</ul>
+<p>Rather than attempt general lowering from arbitrary Allo programs to explicit state machines (an intractably hard problem), we adopt a pattern-matching approach that specifically recognizes systolic array structures in MLIR and generates corresponding XLS grid implementations. We extracted metadata from the MLIR that drives a builder. The builder constructs DSLX proc ASTs for the PE and for the systolic grid that is then serialized.</p>
+<p>You can <a href="https://github.com/Nikil-Shyamsunder/allo-xls-backend/tree/main/allo/backend/xls/examples/systolic">see the generated XLS</a> for one systolic array.</p>
+<h3 id="meta-systolic-arrays-method-2">Meta-Systolic Arrays (Method 2)</h3>
+<p>Beyond the basic pattern-matching approach for library-style systolic arrays, we developed a lowering strategy for systolic arrays expressed using Allo’s metaprogramming constructs:</p>
+<pre data-lang="python" style="background-color:#ffffff;color:#303030;" class="language-python "><code class="language-python" data-lang="python"><span>@df.</span><span style="color:#f0523f;">kernel</span><span>(</span><span style="color:#f0523f;">mapping</span><span>=[P0, P1])
+</span><span style="color:#9d3293;">def </span><span style="color:#0068b3;">gemm</span><span>(</span><span style="color:#f0523f;">A</span><span>, </span><span style="color:#f0523f;">B</span><span>, </span><span style="color:#f0523f;">C</span><span>):
+</span><span>    i, j = df.</span><span style="color:#f0523f;">get_pid</span><span>()
+</span><span>    </span><span style="color:#9d3293;">with </span><span>allo.</span><span style="color:#f0523f;">meta_if</span><span>(i == </span><span style="color:#f89829;">0</span><span>):
+</span><span>        </span><span style="color:#a0a0a0;"># Load B columns
+</span><span>        </span><span style="color:#f89829;">...
+</span><span>    </span><span style="color:#9d3293;">with </span><span>allo.</span><span style="color:#f0523f;">meta_elif</span><span>(j == </span><span style="color:#f89829;">0</span><span>):
+</span><span>        </span><span style="color:#a0a0a0;"># Load A rows
+</span><span>        </span><span style="color:#f89829;">...
+</span><span>    </span><span style="color:#9d3293;">with </span><span>allo.</span><span style="color:#f0523f;">meta_else</span><span>():
+</span><span>        </span><span style="color:#a0a0a0;"># Interior PE: MAC computation
+</span><span>        </span><span style="color:#f89829;">...
+</span></code></pre>
+<p>We chose to implement this at the MLIR level. However, in hindsight a source-to-source transformation may have been easier. The key challenge is that Allo’s <code>meta_if</code> constructs are compiled away before we see them; by the time our compiler receives the MLIR, the conditional code generation has already happened. The resulting MLIR contains separate functions for each grid position: <code>gemm_0_0</code>, <code>gemm_0_1</code>, <code>gemm_1_0</code>, <code>gemm_1_1</code>, etc. Each function has different code depending on which <code>meta_if</code> branch was selected for that <code>(i, j)</code> coordinate at compile time. Thus, we have to pattern match the spatial structure and PE types from this unrolled representation by analyzing the behavior of each generated function.</p>
+<p>We built the <code>SystolicDetector.is_metaif_systolic()</code> method by searching for multiple <code>gemm_i_j</code> functions, functions containing multiply-accumulate logic (interior PEs), and functions with only loads or stream operations (edge handlers). A meta-if systolic array is detected when there are ≥4 <code>gemm_i_j</code> functions and at least one contains MAC computation. The <code>MetaIfSystolicTranslator</code> analyzes each unrolled function to classify its role (MAC PEs, input loaders, and drain PEs). From the function names, we extract grid dimensions. We also extract the K loop bound from interior PE functions. Once we have this metadata, we plug this into the builder from Method 1.</p>
+<h2 id="challenges">Challenges</h2>
+<h3 id="the-lowering-passes">The lowering passes</h3>
+<p>For lowering Allo kernels into DSLX <code>fn</code>s, the biggest conceptual challenge was bridging the semantic gap between Allo’s imperative memory model and XLS’s functional purity constraint. Allo programs freely perform <code>affine.load</code> and <code>affine.store</code> operations on memref buffers, treating arrays as mutable storage. DSLX forbids in-place mutation. To bridge this gap, we translate each <code>affine.store</code> into a DSLX <code>update</code> expression. For a 2D store like <code>C[i][j] = value</code>, the lowering emits <code>update(C, i, update(C[i], j, value))</code>, constructing a new array rather than mutating in place.</p>
+<p>Meanwhile, the systolic array lowering is brittle in ways that feel unsatisfying from a compiler engineering perspective. We rely heavily on syntactic heuristics (e.g. substring matching on function and buffer names, regular expression parsing of stringified MLIR expressions, hardcoded assumptions about argument positions and nesting depths) rather than true semantic analysis. A robust solution would require either significantly more sophisticated pattern recognition using static analysis and dataflow analysis or a general IR transformation framework capable of inferring process networks from arbitrary imperative code. Both are substantially harder problems than we could tackle in this project. Our approach works for the systolic arrays Allo generates today, but it’s fragile.</p>
+<h3 id="xls-toolchain-quirks">XLS Toolchain Quirks</h3>
+<p>Getting systolic arrays to compile through XLS’s full pipeline (DSLX → IR → optimized IR → pipelined Verilog) required substantial debugging. We had to systematically debug by isolating which XLS passes were failing, then examining the intermediate IR representations and optimizations applied.  This debugging process was time-consuming and required deep understanding of XLS’s internal pipeline stages. Documentation was sparse for these advanced features, so we relied on reading XLS source code and experimenting with minimal test cases. Professor Sampson’s pointer to the <a href="https://github.com/google/xls/blob/main/xls/examples/matmul_4x4/matmul_4x4.x">XLS matmul_4x4 example</a> and the <a href="https://google.github.io/xls/tutorials/how_to_use_procs/#channel-arrays-and-loop-based-spawning">proc tutorial</a> proved invaluable for understanding channel arrays and loop-based spawning patterns. In the midst of lowering the designs to Verilog, we found a bug in the default fifo configurations, which was fixed the next day! But, during the process of this project we found out that the golden matmul example couldn’t properly lower to Verilog, as XLS’s scheduling created circular dependencies within their fifo configuration. Thus, we had to create our own XLS systolic array example by playing around with DSLX and seeing what could actually get lowered to Verilog.</p>
+<h3 id="verilator-simulation-infrastructure">Verilator Simulation Infrastructure</h3>
+<p>Setting up cycle-accurate simulation required building a complete testbench infrastructure. We created generic design under test (DUT) files for Verilator, and scripts to run the Verilator test file under different matrix sizes and codegen with different pipeline stages. We additionally implemented cycle-by-cycle output checking, and added scripts to generate CSVs to output the cycles in a digestible manner. For systolic arrays, this was particularly complex because we needed to feed matrix data into edge channels following the correct protocol, respect valid/ready handshaking on FIFO channels, collect results at the right time after K iterations complete, and verify correctness despite cycle-level timing variations. Getting the timing right required careful analysis of the generated Verilog to understand XLS’s channel implementation and synchronization behavior.</p>
+<h2 id="evaluation">Evaluation</h2>
+<h3 id="function-lowering-correctness-results">Function Lowering: Correctness Results</h3>
+<p>Our feedforward DSLX lowering successfully compiles a range of GEMM kernels with varying matrix dimensions and Allo scheduling transformations. We generated correct DSLX for 2×2, 4×4, and 32×32 matrix multiplications, exercising different Allo scheduling primitives:</p>
+<ul>
+<li><code>bench_simple</code>: unscheduled baseline</li>
+<li><code>bench_split_outer</code>: outer loop tiling</li>
+<li><code>bench_split_inner</code>: inner loop tiling</li>
+<li><code>bench_split_both</code>: two-level tiling</li>
+<li><code>bench_split_reorder</code>: loop reordering</li>
+<li><code>bench_compose</code>: composed transformations</li>
+</ul>
+<p>Each variant produces syntactically and semantically correct DSLX functions that pass validation via the DSLX interpreter on handwritten tests, that produce analogous outputs to tests run at the Allo level.</p>
+<p>For XLS IR generation, we successfully generated unrolled XLS IR for 4×4 GEMM benchmarks across all scheduling variants. The generated IR executes correctly under <code>eval_ir_main</code> (the XLS IR interpreter) under similar tests as those run at the DSLX level, and which once again provide equivalent outputs to analogous tests run at the Allo level.</p>
+<h3 id="systolic-lowering-correctness-results">Systolic Lowering: Correctness Results</h3>
+<p>Both the library-style systolic lowering and the meta-systolic system successfully generates synthesizable XLS procs for 2×2, 3×3, and 4×4 grids validated at the DSLX level through handwritten DSLX test procs for floats and integers, and through Verilator simulation for integers. These tests cover edge and naive cases like multiplying by the identity matrix and multiplying by the 0 matrix, as well as non-trivial matrix multiply examples that yield identical outputs at the Allo/Python level.</p>
+<p>Our systolic array lowering was also synthesizable.</p>
+<p><img src="manual_gemm_pnr.png" alt="manual_gemm_pnr diagram" width="300"/> <img src="systolic_2x2_pnr.png" alt="systolic_2x2_pnr diagram" width="310"/></p>
+<p>Above are schematics of final place and route for the manually compiled vanilla 2x2 uint32 gemm and the 2x2 uint32 manually compiled systolic design from the Allo library.</p>
+<h3 id="performance-results-cycle-accurate-simulation">Performance Results: Cycle-Accurate Simulation</h3>
+<p>We performed Verilator simulation on several designs to validate functional correctness and measure performance. Here are the key results for our manually-compiled baseline GEMM and various systolic configurations (the library-style and meta-if systolic designs in Allo all lowered have the same latency because they use the same builder):</p>
+<p><strong>2×2 Designs (K=2):</strong></p>
+<table><thead><tr><th>Design</th><th>Type</th><th>Pipeline Stages</th><th>Cycles</th></tr></thead><tbody>
+<tr><td>Combinational GEMM</td><td>uint32</td><td>5</td><td>5</td></tr>
+<tr><td>Systolic</td><td>uint32</td><td>2</td><td>18</td></tr>
+<tr><td>Systolic</td><td>uint32</td><td>3</td><td>19</td></tr>
+<tr><td>Systolic</td><td>uint32</td><td>5</td><td>22</td></tr>
+<tr><td>Systolic</td><td>float32</td><td>2</td><td>16</td></tr>
+<tr><td>Systolic</td><td>float32</td><td>3</td><td>17</td></tr>
+<tr><td>Systolic</td><td>float32</td><td>5</td><td>18</td></tr>
+</tbody></table>
+<p>The combinational GEMM designs complete in just 5 cycles regardless of source-level optimizations. This is because XLS’s optimization passes completely unroll all the high-level structural variations in loops. These loop optimizations would probably only make a difference in conjunction with more complex memory optimizations and pipelining. All Allo scheduling transformations (split, reorder, compose) produce identical cycle counts after synthesis.</p>
+<p>Systolic arrays show higher latency (16-30 cycles for 2×2) but scale better for larger matrices. The latency increases with pipeline depth as expected, with deeper pipelines trading latency for higher maximum frequency. Notably, all designs with pipeline depth 1 failed Verilog generation. It seems that XLS requires at least 2 pipeline stages for proc networks to synthesize correctly.</p>
+<p><strong>Larger Grid Results:</strong></p>
+<table><thead><tr><th>Design</th><th>Rows×Cols</th><th>K</th><th>Type</th><th>Pipeline Stages</th><th>Cycles</th><th>Status</th></tr></thead><tbody>
+<tr><td>Systolic</td><td>3×3</td><td>2</td><td>uint32</td><td>2</td><td>26</td><td>PASS</td></tr>
+<tr><td>Systolic</td><td>3×3</td><td>2</td><td>uint32</td><td>3</td><td>27</td><td>PASS</td></tr>
+<tr><td>Systolic</td><td>3×3</td><td>2</td><td>uint32</td><td>5</td><td>30</td><td>PASS</td></tr>
+<tr><td>Systolic</td><td>3×3</td><td>2</td><td>uint32</td><td>7</td><td>41</td><td>PASS</td></tr>
+<tr><td>Systolic</td><td>4×4</td><td>4</td><td>int32</td><td>2</td><td>38</td><td>PASS</td></tr>
+<tr><td>Systolic</td><td>4×4</td><td>4</td><td>int32</td><td>3+</td><td>-</td><td>NO OUTPUT</td></tr>
+</tbody></table>
+<p>The 3×3 design scales as expected, with cycle count growing roughly with grid size. However, the 4×4 design with K=4 fails to produce valid output for pipeline depths ≥3, hitting the 1480-cycle timeout. This suggests XLS’s scheduling algorithms struggle with larger proc networks at higher pipeline depths, possibly due to channel synchronization deadlocks or state space explosion in the scheduler.</p>
+<p>The 18-cycle systolic latency breaks down into:</p>
+<ol>
+<li>PE pipeline execution across K=2 iterations (~8-10 cycles)</li>
+<li>State machine coordination overhead (~3 cycles)</li>
+<li>Result collection (~4 cycles) for sequential gathering from all PEs</li>
+</ol>
+<p><strong>Scalability Implications:</strong></p>
+<p>For 2×2 matrices, combinational designs dominate, at least with our XLS systolic array design. However, extrapolating to larger matrices there may be an inflection point where systolic arrays begin to dominate.</p>
+<h2 id="future-directions">Future Directions</h2>
+<ol>
+<li>
+<p>Handling more Allo Constructs: in particular, more of the Allo customization and scheduling primitives, particularly those having to do with memory.</p>
+</li>
+<li>
+<p>Extending Pattern Coverage: the current systolic array pattern matcher could be extended to recognize other regular structures, or generalized to handle more complex systolic layouts and massage them into <code>proc</code>s.</p>
+</li>
+<li>
+<p>Choosing between <code>fn</code>s and <code>proc</code>s : Currently, our <code>fn</code> passes and our <code>proc</code> passes our disjoint. It would be nice if a user could specify what they want to lower into pure dataflow <code>fn</code>s vs. what they want to be a proc. Perhaps we could allow a pre-codegen flag in the MLIR that a user can specify to make this decision. Or we can use loop trip count analysis to decide between unrolling and proc-based iteration. Or we could try to turn everything into <code>fn</code>s and only use <code>proc</code>s when that’s not possible: (for example, loops with dynamic trip counts).</p>
+</li>
+<li>
+<p>Automated Design Space Exploration: The meta-systolic system demonstrates automated variant generation, but we could extend this to use synthesis results to guide further generation (iterative optimization)</p>
+</li>
+</ol>
+<h2 id="aside-surprising-findings-compared-to-the-llm-generation">Aside: Surprising Findings compared to the LLM Generation</h2>
+<p>Our research partners explored an alternative compilation approach using LLM-based agents (see <a href="https://www.youtube.com/watch?v=OcR5Z9o5RB4&amp;list=PLRvJfry30-22JzxHU2XuGQe0oJeMk-9bm&amp;index=11">our project video</a> for details). Remarkably, they found that LLM-generated DSLX code, after passing through XLS’s optimization and synthesis pipeline, converged to <strong>identical hardware implementations</strong> as our manually-compiled code. All designs are 2x2 uint32 matmuls, vanilla gemms pipelined to 5 stages, and the library systolic to 2 (empirically evaluated to be the best), with cycle counts from Verilator, and the area, clock, and power from commercial tools.</p>
+<table><thead><tr><th>Design</th><th>Area (µm²)</th><th>Clock (ns)</th><th>Power (mW)</th><th>Cycles</th></tr></thead><tbody>
+<tr><td><strong>Compiler GEMM</strong></td><td>36,480</td><td>4.06</td><td>17.38</td><td>5</td></tr>
+<tr><td><strong>Claude GEMM</strong></td><td>36,480</td><td>4.06</td><td>17.38</td><td>5</td></tr>
+<tr><td><strong>GPT GEMM</strong></td><td>36,480</td><td>4.06</td><td>17.37</td><td>5</td></tr>
+<tr><td><strong>Compiler Systolic</strong></td><td>51,076</td><td>4.10</td><td>16.74</td><td>18</td></tr>
+</tbody></table>
+<p>Both Claude Opus 4.5 and GPT-generated correct code for the simple gemm examples eventually. In this case, XLS’s unrolling passes completely normalized all high-level variations. However, the agent was unable to generate correct systolic arrays in XLS given an Allo input. We were able to develop a compiler pass that was faster, had broader scope, and higher accuracy than the agentic system build with the same development timeline.</p>
+<p>We also developed a randomized differential testing framework using XLS’s QuickCheck infrastructure to validate equivalence between our compiler-generated code and LLM-written implementations under diverse inputs. For each benchmark, we constructed differential test harnesses between the compiler output and references written by LLMs.</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#303030;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#f0523f;">quickcheck</span><span>(test_count=5)]
+</span><span style="color:#9d3293;">fn </span><span style="color:#0068b3;">prop_gemm_equivalence</span><span>(</span><span style="color:#f0523f;">A</span><span>: s32[32][32], </span><span style="color:#f0523f;">B</span><span>: s32[32][32]) -&gt; </span><span style="color:#9d3293;">bool </span><span>{
+</span><span>    </span><span style="color:#9d3293;">let</span><span> result_compiler = </span><span style="color:#41c4dd;">allo_gemm_compiler</span><span>(A, B);
+</span><span>    </span><span style="color:#9d3293;">let</span><span> result_reference = </span><span style="color:#41c4dd;">allo_gemm_reference</span><span>(A, B);
+</span><span>    result_compiler == result_reference
+</span><span>}
+</span></code></pre>
+<p>The XLS interpreter automatically generates randomized 32×32 integer matrices as inputs, executes both implementations, and verifies bitwise equality of outputs. This provides substantially greater input space coverage than hand-crafted test cases. Our framework successfully validates the <code>simple</code>, <code>split_outer</code>, and <code>split_both_merge</code> benchmarks, with all random trials passing. The <code>split_inner</code> and <code>split_both</code> benchmarks currently fail differential testing, correctly finding bugs, we realized, in our LLM’s implementations!</p>
+<h2 id="genai-statement">GenAI Statement</h2>
+<p>We used Claude to generate shell scripts and testing scripts, which it’s quite good at! We also used Claude to diagnose DSLX errors and search the XLS code base to see what kind of flags to use when performing each lowering pass from DSLX to Verilog, particularly when debugging the procs. We used Claude in writing up our compiler passes, but it proved quite poor at doing this. We also used Claude during the preliminary Agentic research to generate DSLX examples of the vanilla GEMM, which it was suprisingly good at doing!</p>
+
+  <footer>
+    
+    <p>Cynthia Shao is an undergraduate junior studying ECE and CS at Cornell. In her free time she likes to crochet, knit, make fun matcha drinks, rock climb, and perform Chinese martial arts.</p>
+<p>Nikil Shyamsunder is an undergraduate junior studying Math and CS at Cornell. In his free time he likes trying to solve gerrymandering with algorithmic game theory, listen to Agatha Christie audio books, and go on scenic walks.</p>
+
+    
+    <p>This is the course blog for <a href="../../index.html">CS 6120</a>, the PhD-level compilers course in the computer science department at Cornell.
+You can subscribe to <a href="../index.html">posts on the blog</a> with <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

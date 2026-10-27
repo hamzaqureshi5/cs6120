@@ -1,0 +1,6 @@
+[submodule "code/bril"]
+	path = code/bril
+	url = https://github.com/sampsyo/bril.git
+[submodule "code/cs6120-course-source"]
+	path = code/cs6120-course-source
+	url = https://github.com/sampsyo/cs6120.git

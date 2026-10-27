@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Syllabus</title>
+
+  <link href="../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1 id="cs-6120-advanced-compilers-syllabus">CS 6120: Advanced Compilers Syllabus</h1>
+<p>This is a research-oriented PhD course about programming language implementation.
+The class focuses on hacking, reading papers, and writing <a href="../blog/index.html">blog</a> posts.</p>
+<h2 id="communication">Communication</h2>
+<p>Please <a href="../private/zulip.html">sign up</a> for the <a href="https://cs6120.zulipchat.com">course Zulip</a>.
+All course communication will happen there (not on email).
+You will need <a href="../private/zulip.html">this magical, Cornell-authenticated invitation link</a> to register for Zulip.</p>
+<p>(Zulip is an open-source Slack-like chat tool with a few unique features that make it a good fit for class discussion. Thanks to <a href="https://zulipchat.com">the Zulip folks</a> for donating a plan for 6120!)</p>
+<h2 id="class-sessions">Class Sessions</h2>
+<p>Check the <a href="../schedule/index.html">schedule</a> for each day of class—it will fall into one of two categories:</p>
+<ul>
+<li><em>“Lesson” days:</em>
+Before class, optionally watch the video and/or do any associated reading.
+The video covers approximately the same stuff as we’ll talk about in class, so don’t sweat it.
+The class may also include a quiet hacking session and an opportunity to ask questions and work together with the rest of the class on <a href="index.html#tasks">implementation tasks</a>.</li>
+<li><em>“Discussion” days:</em>
+Before class, do the (required) reading and answer the (required) discussion questions on the associated GitHub Discussions thread.
+We will discuss the reading synchronously.
+After the discussion wraps up, there may be time for more hanging around and hacking.</li>
+</ul>
+<h2 id="the-work">The Work</h2>
+<p>There are four kinds of things that make up the coursework for CS 6120.</p>
+<ul>
+<li><a href="index.html#tasks"><em>Implementation tasks:</em></a>
+Discrete bits of compiler implementation work to deepen your understanding of the topics in the <a href="../lesson/index.html">lessons</a>.</li>
+<li><a href="index.html#papers"><em>Paper reading and discussion:</em></a>
+We’ll read research papers, and everybody will participate in asynchronous (pre-class, online) discussions and synchronous (in-class) discussions.</li>
+<li><em>Leading paper discussions:</em>
+For a subset of the aforementioned research papers, you’ll be responsible for leading the online and synchronous discussion and synthesizing a <a href="../blog/index.html">blog</a> post.</li>
+<li><a href="index.html#project"><em>Course project:</em></a>
+There is an open-ended course implementation project that culminates in a blog post.</li>
+</ul>
+<p>If you are considering whether to enroll in this class,
+please think carefully about whether all of these forms of work appeal to you.
+Some examples of work styles that some people don’t like include writing blog posts for a general audience and organized
+small-group discussions.</p>
+<h2 id="tasks">Implementation Tasks</h2>
+<p>To reinforce the specific compiler techniques we learn about in class, you will work on implementing them on your own.
+The usual pattern is that we will come up with the high-level idea and the pseudocode in lessons; your job is to turn it into real, working code and collect empirical evidence that it’s working.
+Going through the complete implementation will teach you about realities that you cannot get by thinking at a high level.</p>
+<p><em>Testing</em> your implementation is a critical component.
+Your job is to make a convincing case that your implementation does what you intended it to do: for example, an optimization is supposed to make programs faster, most of the time, and never break any programs.
+A formal proof of these properties is probably out of scope, so you will need to find some other way to gather evidence.
+In particular, <em>don’t (just) use existing test cases you find in the Bril git repository,</em> which are never thorough enough.
+One good tactic can be to use <a href="https://capra.cs.cornell.edu/bril/tools/bench.html">all the benchmarks in the repo</a>, however.</p>
+<p>You can work individually or in groups of 2–3 students.
+When you finish an implementation, do this:</p>
+<ul>
+<li>I recommend (but do not require) that you put all your code online in an open-source source code repository, e.g., on GitHub.</li>
+<li>Submit the assignment on <a href="https://cmsx.cs.cornell.edu/">CMS</a>. Just submit a text file with a URL to your open-source implementation if it’s available. If you for some reason don’t want to open-source your code, you can instead upload the code itself.</li>
+<li>Write a brief post in the lesson’s associated GitHub Discussions thread covering the following topics (just a paragraph or so is fine):
+<ul>
+<li>Summarize what you did.</li>
+<li>Explain how you know your implementation works—how did you test it? Which test inputs did you use? Do you have any quantitative results to report?</li>
+<li>What was the hardest part of the task? How did you solve this problem?</li>
+<li>Do you think your work deserves a <a href="index.html#grading">Michelin star</a>?</li>
+</ul>
+</li>
+</ul>
+<p>Do all your own work (with your group) on implementation tasks.
+I have sample implementations for many of the tasks in the 6120 GitHub repository; you may not use this code.
+Past 6120 students have open-sourced their implementations; you may not use this either.
+I recommend not looking at my or others’ implementations at all while working on tasks, so you actually learn how to do it—but it’s not hiding if you absolutely need it.
+You are an adult, presumably, and can control your own impulse to skip the hard work.</p>
+<p>If you’re willing, I’m seeking volunteers to track the time they spend on each task.
+You would use something like <a href="https://toggl.com">Toggl</a> to set a separate timer for each assignment, and tell me the total number of minutes you spent on each one.
+This will help me calibrate the time allotted for 6120 tasks in future offerings.</p>
+<h2 id="papers">Paper Reading &amp; Discussion</h2>
+<p>Another part of 6120 is reading and discussing research papers.
+Every time we read a paper (see the <a href="../schedule/index.html">schedule</a>), everybody participates in the discussion in two ways:
+through <a href="https://github.com/sampsyo/cs6120/discussions">GitHub Discussions</a> threads before class,
+and then synchronously in class.
+Someone will take on the role of the discussion leader for both components.</p>
+<h3 id="before-class">Before Class</h3>
+<p>For every paper, the leader will create a GitHub Discussions topic; post at least one message there with your thoughts on the paper before the class period with the discussion.
+You can either start your own top-level subthread or respond to someone else’s.</p>
+<p>Your comment must include both of these elements (and anything else you want to say):</p>
+<ul>
+<li>Some <strong>critique</strong> of the paper: your own thoughts that expand on some element in the paper. While “critique” may have negative connotations, this does not need to be negative: extrapolations that express appreciation, curiosity, or just technical extensions also count.</li>
+<li>At least one <strong>discussion question</strong> that you would like to address synchronously with the class. For examples of good and bad discussion questions, see <a href="https://decomposition.al/CSE290S-2023-01/course-overview.html#how-to-write-discussion-questions">Lindsey Kuper’s instructions for UCSC’s CSE290S</a>.</li>
+</ul>
+<p>Comments are due <strong>at 10pm on the day before the discussion</strong> so the leader has a chance to look before class.</p>
+<h3 id="in-class">In Class</h3>
+<p>Discussion days have three phases:</p>
+<ol>
+<li>Discussion lead’s overview and questions: 10 minutes.</li>
+<li>Small-group discussion: 30 minutes.</li>
+<li>Full-class discussion: 30 minutes.</li>
+</ol>
+<p>The first phase is a short (slides-free) overview that distills the online discussion so far and poses the discussion questions we’ll be using.</p>
+<p>In the second phase, we’ll divide into randomly assigned groups of 3–4 people.
+Each group will do these things:</p>
+<ul>
+<li>Introduce yourselves.</li>
+<li>Talk about the selected discussion questions.</li>
+<li>Try to reach consensus on the group’s answers.</li>
+<li>Prepare to present these answers to the full class.</li>
+</ul>
+<p>In the third phase, the leader will moderate a full-class discussion on each of the questions.
+Each small group will report their answers in 3 minutes or less, and then we’ll try to reach a broader consensus on the questions.</p>
+<h3 id="leading-the-discussion">Leading the Discussion</h3>
+<p>For some subset of the papers, you will be the discussion leader!
+Leaders have three extra responsibilities:
+monitoring and replying to the asynchronous discussion,
+moderating and guiding the in-class discussion,
+and synthesizing some ideas into a blog post after the fact.</p>
+<p><em>At least a week before</em> the discussion day:</p>
+<ul>
+<li>Create a GitHub Discussions thread in the <a href="https://github.com/sampsyo/cs6120/discussions/categories/reading">Reading</a> category for your topic.</li>
+</ul>
+<p><em>During the lead-up to</em> the discussion day:</p>
+<ul>
+<li>Watch the GitHub Discussions thread for your topic.
+Answer any questions you can, offer extra insight when you have it, and so on.</li>
+<li>Select the 2–3 questions you will use for the in-class discussion.</li>
+</ul>
+<p><em>On</em> the discussion day:</p>
+<ul>
+<li>Briefly present an overview of the asynchronous discussion.
+<strong>This is not a presentation about the content of the paper, which everyone has already read.</strong>
+Instead, your job is to distill key points from the asynchronous discussion and to list your selected discussion questions for the day.
+<strong>Do not prepare slides, and do not use more than 10 minutes.</strong>
+You can project the paper itself if you need visual aids, and display your questions using a text editor or something.</li>
+<li>Moderate the full-class discussion phase.</li>
+</ul>
+<p>Due <em>one week after</em> the discussion day:</p>
+<ul>
+<li>
+<p>Write a post about the paper for our <a href="../blog/index.html">course blog</a>.
+The post should contain:</p>
+<ul>
+<li>Any background that you think the audience needs to understand the paper.</li>
+<li>A detailed summary of the main contributions in the work.</li>
+<li>Critical thinking about the merits and shortcomings of the work.</li>
+<li>Discussion of the work’s role in history and its connections to the current computing landscape.</li>
+</ul>
+<p>Feel free to incorporate the best ideas you heard during the online and in-class discussion.
+You can represent your own opinions, ones from the class as a whole, or both.</p>
+<p>While the second item above entails recapping some of the paper, <strong>please resist the temptation to let direct summary make up the bulk of your blog post</strong>. Keep this kind of technical explanation under around a quarter of the length. (To make this work, you will need to prioritize breadth over depth in your summary, and you’ll have to pick and choose specific contributions to highlight instead of hoping to convey the entire paper.)</p>
+<p>Focus most of your writing on your own commentary: context, criticism, and discussion. To emphasize this focus, consider choosing a title for your blog post that is not the title of the paper—instead, it should reflect the main point <em>you want to make</em> about the paper.</p>
+<p>If you need inspiration for the style of post to write, check out <a href="https://www.cs.cornell.edu/courses/cs6120/2025sp/blog/">a previous semester’s blog</a>. But probably avoid reading posts about your paper, if they exist!</p>
+</li>
+<li>
+<p>Publish the post to the <a href="https://github.com/sampsyo/cs6120">course GitHub repository</a> by opening a pull request.
+The repository README has instructions.</p>
+</li>
+<li>
+<p>When your PR is open, announce it on the appropriate GitHub Discussions thread to let other people take a look.</p>
+</li>
+</ul>
+<h2 id="project">Project</h2>
+<p>At the end of the course, you’ll do a language implementation research project.
+This is an open-ended and open-source project that can be on any topic that you can construe as being about compiler hacking.
+The final product is an experience report on the <a href="../blog/index.html">course blog</a> where you rigorously evaluate the success of your implementation.</p>
+<p>You can work individually or in groups of 2–3 people.</p>
+<h3 id="proposal">Proposal</h3>
+<p>The first deadline is the project proposal.
+<a href="https://github.com/sampsyo/cs6120/issues/new?labels=proposal&amp;template=project-proposal.md&amp;title=Project+%5BNUMBER%5D+Proposal%3A+%5BTITLE%5D">Open a GitHub issue</a> answering these three questions, which are a sort of abbreviated form of the <a href="https://www.darpa.mil/work-with-us/heilmeier-catechism">Heilmeier catechism</a>:</p>
+<ul>
+<li>What will you do?</li>
+<li>How will you do it?</li>
+<li>How will you empirically measure success?</li>
+</ul>
+<p>You should also list the GitHub usernames of everyone in the group.
+After you send the PR, submit its URL to the “Project Proposal” assignment on <a href="https://cmsx.cs.cornell.edu/">CMS</a>.</p>
+<p>I will give you feedback on how to approach your project.
+I might also ask you to make changes or add details about your plan; please respond to these requests quickly.
+Once we have a plan, <em>please consider that a contract:</em>
+if you need to change the plan, let me know by commenting on your GitHub issue thread and we will work something out.
+I will grade your project based on how well it fulfills the plan we agreed on.</p>
+<h3 id="implementation">Implementation</h3>
+<p>The main phase, of course, is implementing the thing you said you would implement.
+I recommend you keep a “lab notebook” to log your thoughts, attempts, and frustrations—this will come in handy for the report you’ll write about the project.</p>
+<p>I strongly recommend that you develop your code as an open-source project.
+Use a publicly-visible version control repository on a host like GitHub, and include an <a href="https://opensource.org/licenses">open source license</a>.
+When you create your repository, comment on your proposal GitHub issue with a link.
+(If you have a specific objection to open-sourcing your code, that’s OK—include a description of how you’ll share your code privately with me.)</p>
+<h3 id="evaluation">Evaluation</h3>
+<p>A major part of your project is an empirical evaluation.
+To design your evaluation strategy, you will need to consider at least these things:</p>
+<ul>
+<li>Where will you get the input code you’ll use in your evaluation?</li>
+<li>How will you check the correctness of your implementation?
+If you’ve implemented an optimization, for example, “correctness” means that the transformed programs behave the same way as the original programs.</li>
+<li>How will you measure the benefit (in performance, energy, complexity, etc.) of your implementation?</li>
+<li>How will you present the data you collect from your empirical evaluation?</li>
+</ul>
+<p>Other questions may be relevant depending on the project you choose.
+Consider the <a href="https://www.sigplan.org/Resources/EmpiricalEvaluation/">SIGPLAN empirical evaluation guidelines</a> when you design your methodology.</p>
+<h3 id="experience-report">Experience Report</h3>
+<p>For the main project deadline, you will write up the project’s outcomes in the form of a post on the <a href="../blog/index.html">course blog</a>.
+Your writeup should answer these questions in excruciating, exhaustive detail:</p>
+<ul>
+<li>What was the goal?</li>
+<li>What did you do? (Include both the design and the implementation.)</li>
+<li>What were the hardest parts to get right?</li>
+<li>Were you successful? (Report rigorously on your empirical evaluation.)</li>
+</ul>
+<p>As with paper discussions, you can optionally include a video to go along with your blog post.</p>
+<p>To submit your report, open a pull request in <a href="https://github.com/sampsyo/cs6120">the course’s GitHub repository</a> to add your post to the blog.
+In your PR description, please include “closes #N” where N is the issue number for your proposal.
+The repository README has instructions.</p>
+<h2 id="grading">Grading</h2>
+<p>All four categories of work in CS 6120 use a <a href="https://en.wikipedia.org/wiki/Michelin_Guide">Michelin star</a> grading system:
+you should shoot for one star, indicating excellent implementation work, insightful participation, a thoughtful blog post, or a spectacularly successful project.
+Merely acceptable work will receive no stars, and extraordinary work can receive multiple stars.
+On <a href="https://cmsx.cs.cornell.edu/">CMS</a>, all assignments are out of one point, indicating the number of stars.</p>
+<p>Consistently earning a Michelin star will get you an A for the course.
+Occasional multi-star work yields an A+, and missing stars leads to incrementally lower grades.</p>
+<p>For the <a href="index.html#tasks">implementation tasks</a> only, you will perform a self-assessment, i.e., your submission must include your own opinion about whether you deserve a Michelin star.
+I will take your opinion into account when assigning your grade.</p>
+<h2 id="policies">Policies</h2>
+<h3 id="enroll">Non-PhD/MS Enrollment</h3>
+<p>CS 6120 is for PhD &amp; MS students.
+If that doesn’t describe you, you can still apply to add the course during the add/drop period.
+Write short answers to these two questions:</p>
+<ol>
+<li>What is CS 6120 about?</li>
+<li>Why do you want to take the course?</li>
+</ol>
+<p>Submit your responses as a one-page PDF to Adrian via <a href="https://cs6120.zulipchat.com">Zulip</a>.
+Please do this after the first class session, so you have some context about the course, and before the end of the day after the first class (i.e., by EOD August 27, 2025).
+If you miss that deadline, I would strongly prefer that you do not try to add the course.
+I will approve your application via Zulip.
+Then, in about 2 working days, the CIS registration office will send you a PIN to enroll.</p>
+<p>If you have questions about the PIN system, you can <a href="https://tdx.cornell.edu/TDClient/193/Portal/Home/">file a request with the CIS registration office</a>.
+But they have asked me to convey that you should not file a ticket merely to ask, “Adrian has approved me; may I please have a PIN?”
+I will send them a list of people who can enroll, and then there is nothing for you to do but wait.</p>
+<h3 id="academic-integrity">Academic Integrity</h3>
+<p>Absolute integrity is expected of all Cornell students in every academic undertaking. The course staff will prosecute violations aggressively.</p>
+<p>You are responsible for understanding these policies:</p>
+<ul>
+<li><a href="http://cuinfo.cornell.edu/Academic/AIC.html">Cornell University Code of Academic Integrity</a></li>
+<li><a href="http://www.cs.cornell.edu/ugrad/CSMajor/index.htm#ai">Computer Science Department Code of Academic Integrity</a></li>
+</ul>
+<p>You can also read about the <a href="http://www.theuniversityfaculty.cornell.edu/AcadInteg/index.html">protocol for prosecution of violations</a>.</p>
+<p>Everything you turn in must be ether 100% completely your own work or clearly attributed to someone else.
+You may discuss your work with other students, look for help online, get writing feedback from the instructor, ask your friend to help debug something, or anything else that doesn’t involve someone else doing your work for you.
+You may not turn in any writing that you did not do yourself or misrepresent existing implementation work as your own.</p>
+<p>The projects in this course are open source, and you may use existing code in your implementation—including code written by other students in this course. You must, however, make it clear which code is yours and which code is borrowed from where.</p>
+<h3 id="generative-ai">Generative AI</h3>
+<p>The work you do for CS 6120 consists of writing code and natural language descriptions.
+To some extent, the new crop of <a href="https://teaching.cornell.edu/generative-artificial-intelligence/cu-committee-report-generative-artificial-intelligence-education#Recommendations">“generative AI” (GAI)</a> tools can do both of these things for you.
+In this class, you can choose—for every assignment—between two options:</p>
+<ol>
+<li>Avoid all GAI tools. Disable <a href="https://github.com/features/copilot/">GitHub Copilot</a> in your editor, do not ask chatbots any questions related to the assignment, etc. If you choose this option, you have nothing more to do.</li>
+<li>Use GAI tools, and include a one-paragraph description of everything you used them for along with your writeup. This paragraph must:
+<ul>
+<li>Link to exactly which tools you used and describe how you used each of them, for which parts of the work.</li>
+<li>Give at least one concrete example (e.g., generated code or Q&amp;A output) that you think is particularly illustrative of the “help” you got from the tool.</li>
+<li>Describe any times when the tool was <em>unhelpful</em>, especially if it was wrong in a particularly hilarious way.</li>
+<li>Conclude with your current opinion about the strengths and weaknesses of the tools you used for real-world compiler implementation.</li>
+</ul>
+</li>
+</ol>
+<p>Remember that you can pick whether to use GAI tools <em>for every assignment</em>, so using them on one set of tasks doesn’t mean you have to keep using them forever.</p>
+<h3 id="respect-in-class">Respect in Class</h3>
+<p>Everyone—the instructor, TAs, and students—must be respectful of everyone else in this class. All communication, in class and online, will be held to a high standard for inclusiveness: it may never target individuals or groups for harassment, and it may not exclude specific groups. That includes everything from outright animosity to the subtle ways we phrase things and even our timing.</p>
+<p>For example: do not talk over other people; don’t use male pronouns when you mean to refer to people of all genders; avoid explicit language that has a chance of seeming inappropriate to other people; and don’t let strong emotions get in the way of calm, scientific communication.</p>
+<p>If any of the communication in this class doesn’t meet these standards, please don’t escalate it by responding in kind. Instead, contact the instructor as early as possible. If you don’t feel comfortable discussing something directly with the instructor—for example, if the instructor is the problem—please contact the advising office or the department chair.</p>
+<h3 id="special-needs-and-wellness">Special Needs and Wellness</h3>
+<p>We provide accommodations for disabilities.
+Students with disabilities can contact <a href="http://sds.cornell.edu">Student Disability Services</a> at
+607-254-4545 or the instructor for a confidential discussion of their
+individual needs.</p>
+<p>If you experience personal or academic stress or need to talk to someone who can help, contact the instructor or:</p>
+<ul>
+<li><a href="http://www.engineering.cornell.edu/student-services/academic-advising">Engineering Academic Advising</a> at 607-255-7414</li>
+<li><a href="http://lsc.sas.cornell.edu">Learning Strategies Center</a> at 607-255-6310</li>
+<li><a href="http://www.gannett.cornell.edu/LetsTalk">Let’s Talk Drop-in Counseling</a> at Gannett at 607-255-5155</li>
+<li><a href="http://ears.dos.cornell.edu">Empathy Assistance and Referral Service</a> at 607-255-EARS</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

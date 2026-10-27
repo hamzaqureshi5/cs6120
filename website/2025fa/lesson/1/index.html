@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Welcome &amp; Overview</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 1:
+  Welcome &amp; Overview
+  
+</h1>
+<ul class="links">
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/0_bug89uok" class="icon video">video</a>
+  </li>
+  
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;gwern.net&#x2F;doc&#x2F;cs&#x2F;algorithm&#x2F;2001-scott.pdf" class="icon reading">On Proebsting’s Law</a>
+    
+    <br>Kevin Scott
+    
+  </li>
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;zeux.io&#x2F;2022&#x2F;01&#x2F;08&#x2F;on-proebstings-law&#x2F;" class="icon reading">On Proebsting’s Law</a>
+    
+    <br>Arseny Kapoulkine
+    
+  </li>
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>September 2</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=0_bug89uok" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<ul>
+<li>Welcome to CS 6120! I’m really excited for the semester.</li>
+<li>What is a compiler, and why should we care?
+<ul>
+<li>A simplistic answer is all about making programs go fast. And optimization is important, but compare Moore’s law to Proebsting’s law.</li>
+<li>This class is about <em>language implementation</em> more broadly. What else goes into a good language implementation other than optimizations? (Not parsing.)
+<ul>
+<li>By the way, <a href="../index.html">lessons</a> in 6120 have an associated discussion thread. We’ll use these for just generally talking about stuff and also for reporting our results.</li>
+</ul>
+</li>
+<li>New languages + new hardware = lots of interesting problems.
+<ul>
+<li>Either one alone would be plenty to keep compiler engineers busy for a long time.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Course overview and the <a href="../../syllabus/index.html">syllabus</a>.
+<ul>
+<li>Communication will be on <a href="https://cs6120.zulipchat.com">Zulip</a>. <a href="../../private/zulip.html">Sign up</a> and stay on top of it!</li>
+<li>Class sessions:
+<ul>
+<li>“Lesson” days.
+<ul>
+<li>I’ll do some traditional “lecturing” in class, but that stuff is (mostly) mirrored by the videos attached to each lesson.</li>
+<li>Most (but not all) lessons have associated tasks for you to complete.</li>
+</ul>
+</li>
+<li>“Discussion” days.
+<ul>
+<li>Everyone’s job is to read the paper ahead of time and post a thoughtful comment.</li>
+<li>Small-group and larger-group discussions.</li>
+<li>The discussion leader’s job is to write a blog post.</li>
+<li>Remember to keep track of the <a href="../../schedule/index.html">schedule</a> so you know when to do these things!</li>
+<li>The first discussion day is the next class, so plan to do the reading and submit a comment by 10pm on the day before.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>The course project.</li>
+<li>“Michelin star” grading.</li>
+<li>Policies, academic integrity, generative AI, respect, accessibility.</li>
+</ul>
+</li>
+<li>This lesson’s task is about debugging the course structure.
+<ul>
+<li>Your first task is below: introduce yourself in the <a href="https://cs6120.zulipchat.com/#narrow/channel/254729-general/topic/introductions.202025.20fall">introductions topic</a> right now, and (offline) pick a paper discussion to lead.
+<ul>
+<li>This website and the <a href="../../blog/index.html">blog</a>, including the <a href="https://github.com/sampsyo/cs6120">GitHub repository</a> where you’ll send PRs. Work for 6120 is “real,” open source, and for the world.</li>
+</ul>
+</li>
+<li>When you’ve done those things, submit the L1 marker assignment on <a href="https://cmsx.cs.cornell.edu/">CMS</a>.</li>
+</ul>
+</li>
+</ul>
+<h2 id="tasks">Tasks</h2>
+<ul>
+<li>Read the <a href="../../syllabus/index.html">syllabus</a>! Seriously, please <a href="https://www.cameo.com/v/5f2b392a0299b100202e624a">actually read it</a>.</li>
+<li><a href="../../private/zulip.html">Sign up for Zulip</a> and introduce yourself in <a href="https://cs6120.zulipchat.com/#narrow/channel/254729-general/topic/introductions.202025.20fall">the introductions topic</a>. Mention a compilers topic you’d like to learn about someday, either in this class or beyond.</li>
+<li>Pick a paper from the <a href="../../schedule/index.html">schedule</a> whose discussion you want to lead.
+Claim it by opening a pull request that modifies <a href="https://github.com/sampsyo/cs6120/blob/2025fa/data/content.toml"><code>content.toml</code></a> to fill in your name on one of the <code>leader = "TBD"</code> lines.
+(Feel free to ask questions about the papers on Zulip to help you decide!)</li>
+<li>Submit any text file you like to the L1 <a href="https://cmsx.cs.cornell.edu/">CMS</a> assignment to indicate that you’ve done the introduction and claimed a paper.
+<ul>
+<li>For this task, submit an empty text file or whatever.</li>
+<li>For others, include a link to your code! I encourage (but don’t require) you to do all your work as open source. If you don’t want to open-source your solutions for some reason, you can upload your code instead.</li>
+</ul>
+</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

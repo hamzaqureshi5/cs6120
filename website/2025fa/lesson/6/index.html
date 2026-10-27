@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Static Single Assignment</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 6:
+  Static Single Assignment
+  
+</h1>
+<ul class="links">
+  
+  <li>
+    <a href="https://github.com/sampsyo/cs6120/discussions/558" class="icon discussion">discussion thread</a>
+  </li>
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_130pq2fh" class="icon video">static single assignment</a>
+  </li>
+  
+  
+  <li>
+    <a href="http:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;afs&#x2F;cs&#x2F;academic&#x2F;class&#x2F;15745-s12&#x2F;public&#x2F;lectures&#x2F;L13-SSA-Concepts-1up.pdf" class="icon reading">SSA slides from Todd Mowry at CMU</a>
+    
+    <br>another presentation of the pseudocode for various algorithms herein
+    
+  </li>
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;hal.inria.fr&#x2F;inria-00349925v1&#x2F;document" class="icon reading">Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Efficiency</a>
+    
+    <br>by Boissinot on more sophisticated was to translate out of SSA form
+    
+  </li>
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;www.cs.princeton.edu&#x2F;~appel&#x2F;papers&#x2F;ssafun.pdf" class="icon reading">SSA is Functional Programming</a>
+    
+    <br>among other fun things, this is usually cited as the origin of the “basic block arguments” idea
+    
+  </li>
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;gist.github.com&#x2F;pizlonator&#x2F;cf1e72b8600b1437dda8153ea3fdb963" class="icon reading">How I implement SSA form</a>
+    
+    <br>Filip Pizlo&#x27;s notes on how to implement the data structures for an SSA IR
+    
+  </li>
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;bernsteinbear.com&#x2F;blog&#x2F;ssa&#x2F;" class="icon reading">A catalog of ways to generate SSA</a>
+    
+    <br>many more links to papers about the myriad ways to generate SSA code
+    
+  </li>
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>October 9</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_130pq2fh" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<p>You have undoubtedly noticed by now that many of the annoying problems in implementing analyses &amp; optimizations stem from variable name conflicts.
+Wouldn’t it be nice if every assignment in a program used a unique variable name?
+Of course, people don’t write programs that way, so we’re out of luck.
+Right?</p>
+<p>Wrong! Many compilers convert programs into static single assignment (SSA) form, which does exactly what it says: it ensures that, globally, every variable has exactly one static assignment location.
+(Of course, that statement might be executed multiple times, which is why it’s not <em>dynamic</em> single assignment.)
+In Bril terms, we convert a program like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@main {
+</span><span>  a: int = const 4;
+</span><span>  b: int = const 2;
+</span><span>  a: int = add a b;
+</span><span>  b: int = add a b;
+</span><span>  print b;
+</span><span>}
+</span></code></pre>
+<p>Into a program like this, by renaming all the variables:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@main {
+</span><span>  a.1: int = const 4;
+</span><span>  b.1: int = const 2;
+</span><span>  a.2: int = add a.1 b.1;
+</span><span>  b.2: int = add a.2 b.1;
+</span><span>  print b.2;
+</span><span>}
+</span></code></pre>
+<p>Of course, things will get a little more complicated when there is control flow.
+And because real machines are not SSA, using separate variables (i.e., memory locations and registers) for everything is bound to be inefficient.
+The idea in SSA is to convert general programs into SSA form, do all our optimization there, and then convert back to a standard mutating form before we generate backend code.</p>
+<h3 id="phi-nodes">ϕ-Nodes</h3>
+<p>Just renaming assignments willy-nilly will quickly run into problems.
+Consider this program:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@main(cond: bool) {
+</span><span>.entry:
+</span><span>    a: int = const 47;
+</span><span>    br cond .left .right;
+</span><span>.left:
+</span><span>    a: int = add a a;
+</span><span>    jmp .exit;
+</span><span>.right:
+</span><span>    a: int = mul a a;
+</span><span>    jmp .exit;
+</span><span>.exit:
+</span><span>    print a;
+</span><span>}
+</span></code></pre>
+<p>If we start renaming all the occurrences of <code>a</code>, everything goes fine until we try to write that last <code>print a</code>.
+Which “version” of <code>a</code> should it use?</p>
+<p>To match the expressiveness of unrestricted programs, SSA adds a new kind of instruction: a <em>ϕ-node</em>.
+ϕ-nodes are flow-sensitive copy instructions: they get a value from one of several variables, depending on which incoming CFG edge was most recently taken to get to them.</p>
+<p>Using Bril syntax, we could write a ϕ-node as an instruction with opcode <code>phi</code>:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>a.4: int = phi .left a.2 .right a.3;
+</span></code></pre>
+<p>This <code>phi</code> instruction chooses between any number of variables, and it picks between them based on labels.
+If the program most recently executed a basic block with the given label, then the <code>phi</code> instruction takes its value from the corresponding variable.</p>
+<p>You can write the above program in SSA like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@main(cond: bool) {
+</span><span>.entry:
+</span><span>    a.1: int = const 47;
+</span><span>    br cond .left .right;
+</span><span>.left:
+</span><span>    a.2: int = add a.1 a.1;
+</span><span>    jmp .exit;
+</span><span>.right:
+</span><span>    a.3: int = mul a.1 a.1;
+</span><span>    jmp .exit;
+</span><span>.exit:
+</span><span>    a.4: int = phi .left a.2 .right a.3;
+</span><span>    print a.4;
+</span><span>}
+</span></code></pre>
+<p>It can also be useful to see how ϕ-nodes crop up in loops.</p>
+<div class="warning">
+<p>This <code>phi</code> instruction in Bril code is for illustration purposes only. Bril previously used <code>phi</code> instructions for <a href="https://capra.cs.cornell.edu/bril/lang/ssa.html">an old, now-deprecated version of SSA</a>. See the section below about <a href="index.html#bril-ssa">SSA in Bril</a> for details about <a href="https://capra.cs.cornell.edu/bril/lang/ssa2.html">the current SSA extension</a>.</p>
+</div>
+<h3 id="the-ssa-philosophy">The SSA Philosophy</h3>
+<p>In addition to a language form, SSA is also a philosophy!
+It can fundamentally change the way you think about programs.
+In the SSA philosophy:</p>
+<ul>
+<li>definitions == variables</li>
+<li>instructions == values</li>
+<li>arguments == data flow graph edges</li>
+</ul>
+<p>In LLVM, for example, instructions do not refer to argument variables by name—an argument is a <em>pointer</em> to defining instruction.</p>
+<h3 id="into-crude">Converting to SSA: Basic Version</h3>
+<p>To convert to SSA, we need to rename variables and insert ϕ-nodes to reconcile these renamed variables.</p>
+<p>Within a basic block, the strategy is pretty simple:
+on every write, just introduce a new “version” of the variable and make sure that all subsequent uses refer to that name.</p>
+<p>Across basic blocks, here’s a really inefficient strategy that creates too many names and too many ϕ-nodes.
+If your function uses <em>n</em> variables and has <em>m</em> blocks, create <em>n × m</em> new variable names so each block has its own, private copy of the variable on entry.
+Then, at the top of every block, insert <em>n</em> ϕ-nodes to pick the right incoming value among the predecessors’ names.</p>
+<p>This naive strategy would produce code like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@main(cond: bool) {
+</span><span>.entry:
+</span><span>  entry.a: int = const 47;
+</span><span>  br cond .left .right;
+</span><span>.left:
+</span><span>  left.a: int = phi .entry entry.a;
+</span><span>  left.a.2: int = add left.a left.a;
+</span><span>  jmp .exit;
+</span><span>.right:
+</span><span>  right.a: int = phi .entry entry.a;
+</span><span>  right.a.2: int = mul right.a right.a;
+</span><span>  jmp .exit;
+</span><span>.exit:
+</span><span>  exit.a: int = phi .left left.a.2 .right right.a.2;
+</span><span>  print exit.a;
+</span><span>}
+</span></code></pre>
+<p>It seems like we can probably do a lot better: i.e., produce many fewer variable “versions” and many fewer ϕ-nodes.</p>
+<h3 id="into-full">Converting to SSA: For Real</h3>
+<p>To convert to SSA less wastefully, we want to insert ϕ-nodes whenever there are distinct paths containing distinct definitions of a variable.
+We <em>don’t</em> need ϕ-nodes in places that are dominated by a definition of the variable.
+So what’s a way to know when control reachable from a definition is <em>not dominated</em> by that definition?
+The dominance frontier!</p>
+<p>We do it in two steps.
+First, insert ϕ-nodes:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>for v in vars:
+</span><span>   for d in Defs[v]:  # Blocks where v is assigned.
+</span><span>     for block in DF[d]:  # Dominance frontier.
+</span><span>       Add a ϕ-node to block,
+</span><span>         unless we have done so already.
+</span><span>       Add block to Defs[v] (because it now writes to v!),
+</span><span>         unless it&#39;s already in there.
+</span></code></pre>
+<p>Then, rename variables:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>stack[v] is a stack of variable names (for every variable v)
+</span><span>
+</span><span>def rename(block):
+</span><span>  for instr in block:
+</span><span>    replace each argument to instr with stack[old name]
+</span><span>
+</span><span>    replace instr&#39;s destination with a new name
+</span><span>    push that new name onto stack[old name]
+</span><span>
+</span><span>  for s in block&#39;s successors:
+</span><span>    for p in s&#39;s ϕ-nodes:
+</span><span>      Assuming p is for a variable v, make it read from stack[v].
+</span><span>
+</span><span>  for b in blocks immediately dominated by block:
+</span><span>    # That is, children in the dominance tree.
+</span><span>    rename(b)
+</span><span>
+</span><span>  pop all the names we just pushed onto the stacks
+</span><span>
+</span><span>rename(entry)
+</span></code></pre>
+<h3 id="converting-from-ssa">Converting from SSA</h3>
+<p>Eventually, we need to convert <em>out of</em> SSA form to generate efficient code for real machines that don’t have <code>phi</code>-nodes and do have finite space for variable storage.</p>
+<p>The basic algorithm is pretty straightforward.
+If you have a ϕ-node:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>v = phi .l1 x .l2 y;
+</span></code></pre>
+<p>Then there must be assignments to <code>x</code> and <code>y</code> (recursively) preceding this statement in the CFG.
+The paths from <code>x</code> to the <code>phi</code>-containing block and from <code>y</code> to the same block must “converge” at that block.
+So insert code into the <code>phi</code>-containing block’s immediate predecessors along each of those two paths:
+one that does <code>v = id x</code> and one that does <code>v = id y</code>.
+Then you can delete the <code>phi</code> instruction.</p>
+<p>This basic approach can introduce some redundant copying.
+(Take a look at the code it generates after you implement it!)
+Non-SSA copy propagation optimization can work well as a post-processing step.
+For a more extensive take on how to translate out of SSA efficiently, see <a href="https://hal.inria.fr/inria-00349925v1/document">“Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Efficiency” by Boissinot et al.</a></p>
+<h3 id="alternative-ssa-representations">Alternative SSA Representations</h3>
+<p>There are some tricky problems with ϕ-nodes that make them a little more subtle than they may appear at first.
+You can either deal with them directly or pick a “twist” on the classic SSA formula that can help avoid these subtleties altogether.</p>
+<h4 id="subtleties-in-classic-ssa">Subtleties in Classic SSA</h4>
+<p>While ϕ-nodes behave like “normal” instructions in some ways, they are weird in other ways.
+The biggest way in which ϕ-nodes are weird is that their semantics depends on the control-flow history of the program.
+Returning to our first example above:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>a.4: int = phi .left a.2 .right a.3;
+</span></code></pre>
+<p>The result we produce in <code>a.4</code> depends on something that happened <em>in the past:</em>
+whether we just “came from” the <code>.left</code> block or the <code>.right</code> block.
+No other instruction depends on this strange, hidden state about the history of the program’s execution.</p>
+<p>A second subtlety is that, if you have multiple <code>phi</code>s at the beginning of a basic block, you want them to execute “simultaneously.”
+Consider a loop in SSA form like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@swappy {
+</span><span>  i: int = const 5;
+</span><span>  one: int = const 1;
+</span><span>  zero: int = const 0;
+</span><span>
+</span><span>.l0:
+</span><span>  x0: int = const 0;
+</span><span>  y0: int = const 1;
+</span><span>  jmp .l1;
+</span><span>
+</span><span>.l1:
+</span><span>  x1: int = phi .l0 x0 .l1 y1;
+</span><span>  y1: int = phi .l0 y0 .l1 x1;
+</span><span>  print x1 y1;
+</span><span>
+</span><span>  cond: bool = gt i zero;
+</span><span>  i: int = sub i one;
+</span><span>  br cond .l1 .end;
+</span><span>
+</span><span>.end:
+</span><span>}
+</span></code></pre>
+<p>Roughly speaking, here’s what this code is supposed to do:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>let x = 0;
+</span><span>let y = 1;
+</span><span>for (let i = 5; i &gt; 0; --i) {
+</span><span>    swap(x, y);
+</span><span>    print(x, y);
+</span><span>}
+</span></code></pre>
+<p>However, what happens if you execute those <code>phi</code> instructions in the loop in order, one at a time?</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>x1: int = phi .l0 x0 .l1 y1;
+</span><span>y1: int = phi .l0 y0 .l1 x1;
+</span></code></pre>
+<p>If we came from a previous iteration of the loop (the <code>.l1</code> label), then the first instruction would set <code>x1</code> to <code>y1</code>, and then the second would set <code>y1</code> to the same value.
+That’s not what we want!
+This pitfall was named the “swap problem” in <a href="https://homes.luddy.indiana.edu/achauhan/Teaching/B629/2006-Fall/CourseMaterial/1998-spe-briggs-ssa_improv.pdf">this 1997 paper by Briggs et al.</a>.</p>
+<p>The resolution is to define the semantics of ϕ-nodes so that, when you have several of them next to each other, they run “simultaneously”: they both read their arguments, and <em>then</em> they both write to their destinations without clobbering each other’s arguments.
+And that is clearly different from any other kind of instruction.</p>
+<p>To make this work, it is common for compilers with SSA ILs to require ϕ-nodes to appear together at the beginnings of basic blocks.
+(This is true in LLVM, for example.)
+This restriction makes sense because ϕ-nodes are for “inter-block” communication, but it can become a practical annoyance to maintain the invariant.
+For example, imagine you have an optimization that can combine two basic blocks when it can prove that a branch is unnecessary.
+That pass needs to carefully move around the two blocks’ ϕ-nodes to get them all up at the beginning of the resulting, combined block.</p>
+<h4 id="basic-block-arguments">Basic Block Arguments</h4>
+<p>One way of looking at these inconveniences is that ϕ-nodes should stop pretending that they are “just normal instructions.”
+If their semantics depends on control flow, if groups of them have to be handled together so they work simultaneously, and if they have to appear in a special position within basic blocks…
+who are we fooling by trying to treat them as instructions inside of blocks?
+They would be better off embracing their true identity as constructs intertwined with the CFG itself.</p>
+<p>Some compilers, therefore, eschew ϕ-nodes altogether and replace them with <em>basic block arguments</em>.
+(This design has appeared prominently in <a href="https://mlir.llvm.org">MLIR</a> and <a href="https://github.com/apple/swift/blob/main/docs/SIL.rst">Swift’s IR</a>, and
+the idea is often attributed to <a href="https://www.cs.princeton.edu/~appel/papers/ssafun.pdf">Andrew Appel’s short and fun 1998 paper titled “SSA is Functional Programming”</a>.)
+These IRs give their basic blocks named parameters; whenever you jump to a block, you must provide arguments for those parameters.</p>
+<p>Here’s a rough impression of what that might look like in Bril-like syntax:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@main(cond: bool) {
+</span><span>.entry():
+</span><span>  a.1: int = const 47;
+</span><span>  br cond .left() .right();
+</span><span>.left():
+</span><span>  a.2: int = add a.1 a.1;
+</span><span>  jmp .exit(a.2);
+</span><span>.right():
+</span><span>  a.3: int = mul a.1 a.1;
+</span><span>  jmp .exit(a.3);
+</span><span>.exit(a.4):
+</span><span>  print a.4;
+</span><span>}
+</span></code></pre>
+<p>Notice that the <code>jmp</code> instructions here pass different arguments to the <code>.exit</code> block’s parameter, just like a function call.</p>
+<p>I think it’s interesting that, compared to ϕ-nodes, basic block arguments push the information to the “other end” of each CFG edge.
+With ϕ-nodes, a basic block enumerates all the possible sources for a given variable, one for each in-edge in the CFG;
+with basic block arguments, the sources are distributed to the predecessor blocks.</p>
+<p>The upshot is that basic block arguments fulfill the same essential role as ϕ-nodes while being a little more transparent about the complexity that they introduce into the IR and the invariants that the compiler must enforce.</p>
+<h4 id="pizlo-s-upsilon-phi-variant">Pizlo’s Upsilon/Phi Variant</h4>
+<p>Here’s another twist on classic SSA with a similar motivation to basic block arguments that Filip Pizlo <a href="https://gist.github.com/pizlonator/79b0aa601912ff1a0eb1cb9253f5e98d">recently sketched</a> and named after himself.
+As with basic block arguments, the idea is to split ϕ-nodes into two parts:
+the “sending side” (the predecessor blocks) and the “receiving side” the (successor block).
+But let’s return to using normal-ish instructions instead of changing the way labels, branches, and jumps work.</p>
+<p>Instead of just one <code>phi</code> instruction, let’s introduce two new instructions: <code>set</code> and <code>get</code>.
+(These are called <code>upsilon</code> and <code>phi</code> in <a href="https://gist.github.com/pizlonator/79b0aa601912ff1a0eb1cb9253f5e98d">Pizlo’s sketch</a>, but I’ve renamed them for clarity.)
+The semantics of these instructions will read and write from <em>shadow variables</em> that exist in a separate environment from the “normal” variables in a function.
+Critically, these shadow variables do not obey the SSA restriction that applies to regular variables: they can have multiple writers, in the same way that classic ϕ-nodes can get their values from multiple predecessors.</p>
+<p>The <code>set</code> instruction looks like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>set x y;
+</span></code></pre>
+<p>and it sets the <em>shadow</em> variable <code>x</code> to the value in the <em>normal</em> variable <code>y</code>.
+Then, the <code>get</code> instruction looks kinda funky:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>x: type = get;
+</span></code></pre>
+<p>It reads the value of the <em>shadow</em> variable <code>x</code> and copies it into the regular variable with the same name, <code>x</code>.</p>
+<p>These instructions obey an important restriction that comes automatically from the fact that the program is in SSA form, i.e., there is only one instruction in a given function that writes to a given variable name.
+There is therefore only one <code>get</code> per shadow variable, because the normal-variable destination of <code>get</code> also determines its shadow-variable source.
+This means that shadow variables are <em>static single use</em> (SSU): there may be multiple definitions, but there is only one use.
+Which has a kind of satisfying symmetry with the SSA constraint on normal variables.</p>
+<p>Writing programs in this version of SSA entails “splitting” ϕ-nodes across the predecessor and successor blocks.
+Here’s an example:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>@main(cond: bool) {
+</span><span>.top:
+</span><span>  a: int = const 5;
+</span><span>  set c a;
+</span><span>  br cond .here .there;
+</span><span>.here:
+</span><span>  b: int = const 7;
+</span><span>  set c b;
+</span><span>.there:
+</span><span>  c: int = get;
+</span><span>  print c;
+</span><span>}
+</span></code></pre>
+<p>The big advantage of this form is that the instructions behave more like other instructions.
+There is no need for <code>set</code> or <code>get</code> instructions to have “simultaneous” semantics because they already split the read side from the write side.
+There is therefore no danger of the “swap problem.”</p>
+<p>There is certainly one big difference between <code>set</code> and <code>get</code> and every other instruction: they interact with the “shadow environment.”
+However, unlike the deeper weirdness of the <code>phi</code> instruction (simultaneous semantics; sensitivity to control-flow history), their weirdness is a little more conventional:
+you can treat it much like any other side effect.
+Your compiler already needs a way to restrict reordering things around <code>print</code>s or memory loads and stores;
+it can use the same mechanism to remain careful about reordering things around changes to the shadow environment.</p>
+<p>Finally, there is no need to require the instructions to appear at a particular place within a basic block.
+An optimization that stitches together two blocks, for instance, can leave <code>get</code>s and <code>set</code>s sprinkled willy-nilly throughout the block and defer any code motion to a separate pass.</p>
+<h3 id="bril-ssa">Bril in SSA</h3>
+<p>Bril has an <a href="https://capra.cs.cornell.edu/bril/lang/ssa2.html">SSA extension</a> that follows the “upsilon/phi form” representation.
+It adds support for <code>set</code> and <code>get</code> instructions, which correspond to Pizlo’s upsilon and phi operations.
+Beyond that, SSA form is just a restriction on the normal expressiveness of Bril—if you solemnly promise never to assign statically to the same variable twice, you are writing “SSA Bril.”</p>
+<p>The <a href="https://capra.cs.cornell.edu/bril/tools/interp.html">reference interpreter</a> has built-in support for <code>set</code> and <code>get</code>, so you can execute your SSA-form Bril programs without fuss.</p>
+<h2 id="tasks">Tasks</h2>
+<ul>
+<li>Implement the “into SSA” and “out of SSA” transformations on Bril functions.
+<ul>
+<li>For both directions, you can pick which version of the transformation to implement. For the “into SSA” transformation, for example, you can try the <a href="index.html#into-crude">basic version</a> (which should be pretty straightforward), the <a href="index.html#into-full">dominance-frontier-based version</a> (which is a bit harder), or any other technique you find in the literature.</li>
+<li>One thing to watch out for: a tricky part of the translation from the pseudocode to the real world is dealing with variables that are undefined along some paths. The <a href="https://capra.cs.cornell.edu/bril/lang/ssa2.html">Bril SSA extension</a> has an <code>undef</code> instruction you can use to handle this case.</li>
+<li>Previous 6120 adventurers have found that the “full” version of the “into SSA” transformation can be tricky to get right. Leave yourself plenty of time, and test thoroughly.</li>
+</ul>
+</li>
+<li>Convince yourself that your implementation actually works!
+<ul>
+<li>Check that the output of your “to SSA” pass is <em>actually</em> in SSA form. There’s a <a href="https://github.com/sampsyo/bril/blob/main/examples/is_ssa.py">really simple <code>is_ssa.py</code> script</a> that can check that for you.</li>
+<li>You also must check that programs do the same thing when converted to SSA form and back again. Fortunately, <a href="https://capra.cs.cornell.edu/bril/tools/interp.html">brili</a> supports the <code>set</code> and <code>get</code> instructions, so you can interpret your SSA-form programs if you want to check the midpoint of that round trip.</li>
+</ul>
+</li>
+<li>Measure the overhead. If you take a program on a round trip through SSA form and back, how many more instructions (static or dynamic) does the final program have than the original? Report this overhead so you can compare your implementation against the rest of the class. If you ended up implementing more than one version of the transformations, you can compare them against each other.</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

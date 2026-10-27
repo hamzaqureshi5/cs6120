@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: When Prototypes Learned to Run Fast: SELF and the Birth of Adaptive Optimization</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="When Prototypes Learned to Run Fast: SELF and the Birth of Adaptive Optimization">
+<meta property="og:description"
+    content="Introduction: The Core Contribution of SELF
+The SELF paper is often misunderstood as focusing purely on language design (prototypes, dynamic typing). Its true contribution lies in being one of the earliest successful attempts to take a maximally flexible language model and make it fast using adaptive optimization.
+Many concepts central to modern Just-In-Time (JIT) compilers—including speculation, inlining, and tracking object shapes—originated here. In 1989, SELF challenged the prevailing wisdom that dynamic languages would inevitably be slow, changing the trajectory of dynamic language performance.
+A Quick Primer on the SELF Language
+SELF is characterized by its extreme dynamism and uniformity:">
+
+<!-- KaTeX -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/+DiW/UqRcLbRjq" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l+B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd+qj+o24G5ZU2zJz" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous" onload="renderMathInElement(document.body, { delimiters: [ {left: '$$', right: '$$', display: true}, {left: '\\[', right: '\\]', display: true}, {left: '$', right: '$', display: false} ] });"></script>
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="../index.html">
+    The CS 6120 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>When Prototypes Learned to Run Fast: SELF and the Birth of Adaptive Optimization</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Jake Hyun,
+      
+        Tobi Weinberg,
+      
+        Adnan Armouti
+      
+      <span>
+    
+    <time datetime="2025-11-13">
+      November 13, 2025
+    </time>
+  </p>
+  <h2 id="introduction-the-core-contribution-of-self">Introduction: The Core Contribution of SELF</h2>
+<p>The SELF paper is often misunderstood as focusing purely on language design (prototypes, dynamic typing). Its true contribution lies in being one of the earliest successful attempts to take a <strong>maximally flexible language model and make it fast</strong> using <strong>adaptive optimization</strong>.</p>
+<p>Many concepts central to modern Just-In-Time (JIT) compilers—including <strong>speculation</strong>, <strong>inlining</strong>, and <strong>tracking object shapes</strong>—originated here. In 1989, SELF challenged the prevailing wisdom that dynamic languages would inevitably be slow, changing the trajectory of dynamic language performance.</p>
+<h2 id="a-quick-primer-on-the-self-language">A Quick Primer on the SELF Language</h2>
+<p>SELF is characterized by its extreme dynamism and uniformity:</p>
+<ul>
+<li><strong>Prototypes Only:</strong> No classes are used.</li>
+<li><strong>Message-Based:</strong> Every field access, and even control structures (like <code>ifTrue:False:</code>), is implemented as a <strong>message send</strong>.</li>
+<li><strong>Runtime Changes:</strong> Inheritance and object structure can change at runtime.</li>
+</ul>
+<p>This elegance creates a challenge: a naive implementation would be overwhelmed by the cost of <strong>dynamic lookups</strong>.</p>
+<h2 id="how-the-system-achieved-performance">How the System Achieved Performance</h2>
+<p>The SELF implementation introduced several foundational ideas to manage the late-bound nature of the language.</p>
+<h3 id="1-maps-hidden-classes">1. Maps (Hidden Classes)</h3>
+<p>To reclaim efficiency, the system creates <strong>Maps</strong>. These are shared, internal descriptors of an object’s memory layout and slot metadata.</p>
+<ul>
+<li>They are essentially the same concept as <strong>hidden classes</strong> in modern JavaScript engines (e.g., V8).</li>
+<li>The implementation silently introduces class-like structure without exposing it to the programmer.</li>
+</ul>
+<h3 id="2-customized-dynamic-compilation">2. Customized Dynamic Compilation</h3>
+<p>Instead of compiling one generic version of a method, SELF compiles <strong>many versions</strong>, specialized for each receiver “shape” (map).</p>
+<ul>
+<li>This specialization allows the compiler to treat the <code>self</code> receiver’s type as <strong>known</strong>, enabling aggressive <strong>inlining</strong>.</li>
+</ul>
+<h3 id="3-message-splitting-and-type-prediction">3. Message Splitting and Type Prediction</h3>
+<ul>
+<li><strong>Problem:</strong> When control flow merges, type information is lost.</li>
+<li><strong>Solution:</strong> The compiler handles this by <strong>“splitting”</strong> the following message, creating multiple execution paths.</li>
+<li>The compiler uses <strong>type prediction</strong> to identify common paths (e.g., the result of a comparison is usually <code>true</code> or <code>false</code>) and generates <strong>fast paths</strong> with guard checks.</li>
+</ul>
+<h3 id="4-primitive-inlining">4. Primitive Inlining</h3>
+<p>Operations like arithmetic and slot access, which appear as slow message sends in the source code, are recognized and aggressively <strong>inlined</strong> to just a few machine instructions.</p>
+<h3 id="5-staying-interactive">5. Staying Interactive</h3>
+<p>Remarkably, SELF maintained a <strong>live programming environment</strong>. It supported:</p>
+<ul>
+<li><strong>Selective invalidation</strong> when a method was changed.</li>
+<li><strong>Reconstructing call stacks</strong> for the debugger, even for heavily inlined code.</li>
+</ul>
+<h2 id="class-discussion-and-key-themes">Class Discussion and Key Themes</h2>
+<h3 id="flexibility-vs-performance-trade-off">Flexibility vs. Performance Trade-off</h3>
+<p>We noted that SELF’s extreme flexibility comes at a significant cost, forcing the compiler to work very hard. The discussion questioned if dynamic typing still offers a superior speed advantage for prototyping, given the capabilities of modern static languages and tools (e.g., <strong>TypeScript, Rust, Scala</strong>).</p>
+<h3 id="missing-costs-in-evaluation">Missing Costs in Evaluation</h3>
+<p>The evaluation’s focus on small benchmarks was a weakness. The paper largely ignored the critical costs of <strong>compile-time overhead</strong>, <strong>memory use</strong>, and <strong>code-size growth</strong> (due to message splitting), which were especially relevant on 1980s hardware.</p>
+<h3 id="maps-as-implicit-structure">Maps as Implicit Structure</h3>
+<p>While maps keep the language clean, their implicit nature <strong>hides performance behavior</strong> from the programmer. This means a developer cannot explicitly “lock in” an object’s shape to assist the optimizer.</p>
+<h3 id="legacy-and-surviving-ideas">Legacy and Surviving Ideas</h3>
+<p>The influence of SELF on modern runtimes is profound:</p>
+<ul>
+<li><strong>Maps $\rightarrow$ Hidden Classes</strong> (e.g., in V8).</li>
+<li><strong>Specialized compilation</strong> $\rightarrow$ <strong>Tiered JITs</strong>.</li>
+<li><strong>Inline Caches</strong> $\rightarrow$ Universal optimization technique.</li>
+<li><strong>Type prediction</strong> $\rightarrow$ <strong>Speculative optimization</strong>.</li>
+</ul>
+<p>The key difference today is <strong>Deoptimization</strong>: modern systems <strong>jump back</strong> to a baseline form when speculation fails, rather than discarding the code entirely.</p>
+<h3 id="metrics-and-relevance">Metrics and Relevance</h3>
+<p>The <strong>MiMS (millions of messages per second)</strong> metric did not impress anyone. It is too tied to the message-passing model. Modern evaluation prioritizes <strong>throughput, latency, warm-up time, and memory footprint</strong>.</p>
+<h3 id="designing-a-modern-self-like-language">Designing a Modern SELF-like Language</h3>
+<p>To retain the spirit of SELF while being more practical, the class proposed:</p>
+<ul>
+<li>Keep the <strong>prototype flexibility</strong> and <strong>live-programming feel</strong>.</li>
+<li>Add <strong>optional type hints</strong> and <strong>clearer module boundaries</strong>.</li>
+<li>Allow programmers to explicitly <strong>freeze object shapes</strong> to aid the optimizer.</li>
+</ul>
+<h2 id="conclusion">Conclusion</h2>
+<p>The SELF paper’s lasting legacy is proving that high-performance is achievable in a highly dynamic model through aggressive, speculative implementation techniques. Its ideas are now <strong>foundational</strong> to how dynamic language VMs are built. The core lesson remains: <strong>performance does not have to dictate language design</strong> if the runtime is smart enough.</p>
+
+  <footer>
+    
+    <p>Jake Hyun, Tobi Weinberg, and Adnan Armouti are CS PhD students at Cornell Tech.</p>
+
+    
+    <p>This is the course blog for <a href="../../index.html">CS 6120</a>, the PhD-level compilers course in the computer science department at Cornell.
+You can subscribe to <a href="../index.html">posts on the blog</a> with <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

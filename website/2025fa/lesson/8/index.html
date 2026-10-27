@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Loop Optimization</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 8:
+  Loop Optimization
+  
+</h1>
+<ul class="links">
+  
+  <li>
+    <a href="https://github.com/sampsyo/cs6120/discussions/560" class="icon discussion">discussion thread</a>
+  </li>
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_2shcxd1h" class="icon video">video</a>
+  </li>
+  
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>October 28</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_2shcxd1h" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<ul>
+<li>Recall from <a href="../5/index.html">Lesson 5</a>: identifying <em>natural loops</em> in the CFG.</li>
+<li>Loop optimization is important because programs, by definition, spend most of their time executing loops! (A program without any loops can’t run for very long.)</li>
+</ul>
+<h3 id="loop-invariant-code-motion-licm">Loop-Invariant Code Motion (LICM)</h3>
+<p>Also from <a href="../5/index.html">Lesson 5</a>, recall the <em>loop-invariant code motion</em> (LICM) optimization, which moves code from inside a loop to before the loop, if the computation always does the same thing on every iteration of the loop.</p>
+<p>A loop’s <em>preheader</em> is its header’s unique predecessor outside the loop. LICM moves code to the preheader. But while natural loops need to have a unique header, the header does not necessarily have a unique predecessor. So it’s often convenient to invent an empty preheader block that jumps directly to the header, and then move all the in-edges to the header to point there instead.</p>
+<p>LICM needs two ingredients: identifying loop-invariant instructions in the loop body, and deciding when it’s safe to move one from the body to the preheader.</p>
+<p>To identify loop-invariant instructions:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>iterate to convergence:
+</span><span>    for every instruction in the loop:
+</span><span>        mark it as LI iff, for all arguments x, either:
+</span><span>            all reaching defintions of x are outside of the loop, or
+</span><span>            there is exactly one definition, and it is already marked as
+</span><span>                loop invariant
+</span></code></pre>
+<p>(This determination requires that you already calculated reaching definitions! Presumably using data flow.)</p>
+<p>It’s safe to move a loop-invariant instruction to the preheader iff:</p>
+<ul>
+<li>The definition dominates all of its uses, and</li>
+<li>No other definitions of the same variable exist in the loop, and</li>
+<li>The instruction dominates all loop exits.</li>
+</ul>
+<p>The last criterion is somewhat tricky: it ensures that the computation would have been computed eventually anyway, so it’s safe to just do it earlier. But it’s not true of loops that may execute zero times, which, when you think about it, rules out most <code>for</code> loops! It’s possible to relax this condition if:</p>
+<ul>
+<li>The assigned-to variable is dead after the loop, and</li>
+<li>The instruction can’t have side effects, including exceptions—generally ruling out division because it might divide by zero. (A thing that you generally need to be careful of in such <em>speculative</em> optimizations that do computations that might not actually be necessary.)</li>
+</ul>
+<h3 id="induction-variable-elimination">Induction Variable Elimination</h3>
+<p><em>Induction variable elimination</em> is an optimization that generally targets array indexing (and similar computations).
+Imagine this loop that accesses an array:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    f(a[i]);
+</span><span>}
+</span></code></pre>
+<p>which, in C terms, is equivalent to:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    f(a + i * stride);
+</span><span>}
+</span></code></pre>
+<p>where <code>a</code> is a base pointer and <code>stride</code> is the size of the array’s elements.
+Induction variable elimination rewrites the code to just “bump the pointer” instead of multiplying every time:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>let a_100 = a + 100 * stride;
+</span><span>for (let a_i = a; a_i &lt; a_100; a_i += stride) {
+</span><span>    f(a_i);
+</span><span>}
+</span></code></pre>
+<p>This code only has to do an addition in the loop—it has eliminated a multiplication.</p>
+<p>The basic idea is to find <em>affine</em> expressions like <code>a + i * stride</code> that depend on a loop induction variable (<code>i</code> here) and some loop-invariant values (<code>a</code> and <code>stride</code> here).
+Here’s the recipe:</p>
+<ul>
+<li>Given a natural loop, identify the <em>basic</em> loop induction variable(s), like <code>i</code> in this example.
+<ul>
+<li>These are variables that get have a single in-loop definition that looks like <code>i += e</code> for some loop-invariant value <code>e</code>.</li>
+<li>Of course, there is no such thing as <code>+=</code> in SSA form so identifying this kind of assignment requires traversing ϕ-nodes.</li>
+</ul>
+</li>
+<li>Find <em>derived</em> induction variables.
+<ul>
+<li>You’re looking for an affine expression like <code>j = c * i + d</code> where <code>i</code> is a basic induction variable and <code>c</code> and <code>d</code> are loop-invariant values.</li>
+<li>Record the stride <code>c</code>, offset <code>d</code>, and the basic induction variable <code>i</code> for every induction variable you find this way.</li>
+</ul>
+</li>
+<li>Replace the definition of each derived induction variable.
+<ul>
+<li>Assuming the induction variable is <code>j = c * i + d</code> where <code>i</code> is a basic induction variable that gets updated like <code>i += e</code>…</li>
+<li>In the preheader, initialize <code>j</code> with <code>d</code>. (That’s the “equation” for <code>j</code> with <code>i</code> set to zero.)</li>
+<li>In the loop (after the update to <code>i</code>), replace the definition of <code>j</code> with an update like <code>j += c * e</code> (where that latter multiplication is a loop-invariant value). (And again, this will look a bit different in SSA. And in non-SSA form, you will need to be careful to compute the new value of <code>j</code> right after the update to <code>i</code> but without clobbering other, pre-update uses of <code>j</code>.)</li>
+</ul>
+</li>
+</ul>
+<p>After all this, you’ll want to do some copy propagation and dead code elimination to, for example, eliminate basic induction variables that are no longer necessary.</p>
+<p>This optimization is also sometimes called <em>strength reduction</em> for induction variables (but I think that’s confusing because strength reduction is a much more general concept that doesn’t by itself have anything to do with loops).
+For more, check out <a href="http://www.cs.cmu.edu/afs/cs/academic/class/15745-s19/www/lectures/L8-Induction-Variables.pdf">some slides from CMU on induction variable elimination</a> and two blog posts that cover this topic from CS 6120 in 2019:
+<a href="https://www.cs.cornell.edu/courses/cs6120/2019fa/blog/loop-reduction/#strength-reduction">one by Yi Jing, Zhijing Li, and Neil Adit</a>
+and
+<a href="https://www.cs.cornell.edu/courses/cs6120/2019fa/blog/strength-reduction-pass-in-llvm/">another by Shaojie Xiang, Yi-Hsiang Lai, and Yuan Zhou</a>.</p>
+<h3 id="loop-unswitching">Loop Unswitching</h3>
+<p>Loop unswitching “lifts” conditions out of loops, creating two loops.
+So this code:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    if (c) {  // Loop-invariant value.
+</span><span>        f();
+</span><span>    } else {
+</span><span>        g();
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>Becomes:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>if (c) {
+</span><span>    for (let i = 0; i &lt; 100; ++i) {
+</span><span>        f();
+</span><span>    }
+</span><span>} else {
+</span><span>    for (let i = 0; i &lt; 100; ++i) {
+</span><span>        g();
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>The analysis, of course, requires identifying loop-invariant code.
+Then the heavily lifting in the transformation is “just” rearranging the CFG and duplicating the loop’s subgraph.
+For more, see <a href="https://www.cs.cornell.edu/courses/cs6120/2019fa/blog/loop-unswitching/">a blog post by Sameer Lal</a> from CS 6120 in 2019.</p>
+<h3 id="loop-fusion-fission">Loop Fusion &amp; Fission</h3>
+<p><em>Loop fusion</em> or <em>loop jamming</em> takes two sequential loops and combines them into one.
+Its main purpose again has to do with arrays, particularly when feeding the output from one loop into the input of the next loop, like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    b[i] = f(a[i]);
+</span><span>}
+</span><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    c[i] = g(b[i]);
+</span><span>}
+</span></code></pre>
+<p>Fusing these loops yields one that calls both <code>f</code> and <code>g</code>:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    b[i] = f(a[i]);
+</span><span>    c[i] = g(b[i]);
+</span><span>}
+</span></code></pre>
+<p>Then, the real win comes if the intermediate array <code>b</code> is “dead” outside of this context, in which case we can eliminate it:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    c[i] = g(f(a[i]));
+</span><span>}
+</span></code></pre>
+<p>In this case, fusion eliminated a lot of memory accesses (and perhaps even reduced the program’s heap footprint, if we no longer even have to allocate <code>b</code>).
+This optimization is extremely important in machine learning compilers and other data-intensive domains—for example, it is far more efficient to fuse a fully-connected layer with a ReLU nonlinearity than it is to compute them serially, with a temporary tensor in between.</p>
+<p>The opposite transformation, <em>loop fission</em> or <em>distribution</em>, can be useful to optimize for locality—i.e., to make multiple, smaller loop bodies that each have a smaller memory footprint.</p>
+<p>The key analysis you need in both case is <em>independence</em>, i.e., being certain that <code>f</code> and <code>g</code> do not interfere with each other so it’s legal to change the order they execute in.</p>
+<h3 id="global-optimizations-galore">Global Optimizations Galore!</h3>
+<p>This is not an exhaustive list of loop optimizations—there are so many more!
+For example:</p>
+<ul>
+<li>Loop unrolling (duplicating the loop body to reduce the numer of branches executed at the expense of code size).</li>
+<li>Loop interchange (replacing row-major iteration with column-major iteration, for example).</li>
+<li>Loop splitting or peeling (carving off the first few iterations of the loop and running them separately, leaving you with a simpler main loop body).</li>
+<li>Loop transformations for <a href="https://dl.acm.org/doi/10.1145/233561.233564">data locality optimization</a> (see also <a href="https://www.cs.utexas.edu/users/mckinley/380C/lecs/24.pdf">Kathryn McKinley’s slides</a> on this topic).</li>
+</ul>
+<p>See overviews of these and still more in <a href="https://www.seas.harvard.edu/courses/cs153/2018fa/lectures/Lec19-Loop-Optimization-II.pdf">Steve Chong’s slides on loop optimizations</a>.</p>
+<p>More broadly, this is where we will stop going down the standard function-level optimization rabbit hole.
+Before the class moves on to farther-flung topics in language implementation, for those who are curious about this sort of thing, I wanted to leave you with a few links to read about even more fancy global optimizations:</p>
+<ul>
+<li><a href="https://www.cs.tufts.edu/~nr/cs257/archive/keith-cooper/value-numbering.pdf">Global value numbering</a>, the turbocharged global version of local value numbering, which you will remember from <a href="../3/index.html">Lesson 3</a>. See also <a href="https://www.cs.cornell.edu/courses/cs6120/2019fa/blog/global-value-numbering/">this CS 6120 blog post by Alexa VanHattum and Gregory Yauney</a>.</li>
+<li><a href="https://en.wikipedia.org/wiki/Partial_redundancy_elimination">Partial redundancy elimination.</a></li>
+<li><a href="https://dl.acm.org/citation.cfm?id=143095.143136">Lazy code motion.</a> See also <a href="http://www.cs.cmu.edu/afs/cs/academic/class/15745-s19/www/lectures/L10-Lazy-Code-Motion.pdf">these slides from CMU</a>.</li>
+</ul>
+<h2 id="tasks">Tasks</h2>
+<p>Your task is to implement and evaluate a loop optimization.</p>
+<ul>
+<li>First, pick Bril or LLVM as your starting point.
+<ul>
+<li>You can work in the SSA form of Bril if you want.</li>
+<li>If you pick Bril, you’ll need to find the natural loops yourself. If you pick LLVM, you can use a <a href="https://llvm.org/doxygen/classllvm_1_1LoopPass.html"><code>LoopPass</code></a> to skip that step, but of course other parts of the implementation will be trickier.</li>
+</ul>
+</li>
+<li>Then, pick your optimization. You can either:
+<ul>
+<li>Choose one of the loop-based optimizations mentioned above in this lesson. (Including one of the ones I just mentioned at the end without describing in detail.) (If you’re having trouble deciding, I recommend LICM.)</li>
+<li>Propose your own. (DM me on Zulip before you start working on it to clear your idea.)</li>
+</ul>
+</li>
+<li>Implement your optimization.</li>
+<li>Rigorously evaluate its performance impact. See the <a href="https://www.sigplan.org/Resources/EmpiricalEvaluation/">SIGPLAN empirical evaluation guidelines</a> for the definition of “rigorous.”
+<ul>
+<li>In Bril, you can use <a href="https://capra.cs.cornell.edu/bril/tools/bench.html">the Bril benchmarks</a>.</li>
+<li>If you choose LLVM, select an existing (small!) benchmark suite such as <a href="https://www.embench.org">Embench</a>. Please violate the SIGPLAN guideline about using complete benchmark suites, an cherry-pick a convenient subset, to make this evaluation tractable.</li>
+</ul>
+</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

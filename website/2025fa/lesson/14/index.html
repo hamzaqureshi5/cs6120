@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Fast Compilers</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 14:
+  Fast Compilers
+  
+</h1>
+<ul class="links">
+  
+  
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;www.cs.cornell.edu&#x2F;~asampson&#x2F;blog&#x2F;flattening.html" class="icon reading">Flattening ASTs (and Other Compiler Data Structures)</a>
+    
+  </li>
+  
+  
+</ul>
+
+<h2 id="gist">Gist</h2>
+<ul>
+<li>The motivation for fast compilers.
+<ul>
+<li>The motivation in <a href="../12/index.html">dynamic compilers</a> is probably self evident.</li>
+<li>In AOT compilers, I personally think compiler performance matters in two regimes:
+<ul>
+<li>For small projects, it affects programmer productivity via the compile-edit-run cycle. (Can you compare how you felt while programming in (for example) Scala or C++ vs. Go or OCaml?)</li>
+<li>For large projects, compilation time can be a huge resource expenditure. If it takes multiple hours to rebuild your main product, can you think of “business” reasons why a company might care about compiler efficiency?</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>The ingredients in compiler performance.
+<ul>
+<li>Asymptotic complexity of the algorithms.</li>
+<li>Host-language efficiency taxes.</li>
+<li>Complexity of the source language’s grammar (people love to focus on this one).</li>
+<li>Data structures.</li>
+</ul>
+</li>
+<li>Some evidence-free generalities about compiler performance.
+<ul>
+<li>The terrible thing is that compilers tend to have a <em>flat profile:</em> there is no single performance bottleneck. Making a compiler go faster usually requires a huge number of small optimizations.
+<ul>
+<li>See, for example, Nicholas Nethercote’s series of blog posts titled <a href="https://nnethercote.github.io/2025/03/19/how-to-speed-up-the-rust-compiler-in-march-2025.html">“How to speed up the Rust compiler in…”</a>, which illustrate some of these small wins in a production compiler.</li>
+</ul>
+</li>
+<li>This is related to why compilers are so often single-threaded, and why there are almost no (but <a href="https://github.com/Co-dfns/Co-dfns">not zero</a>) GPU-accelerated compilers.</li>
+<li>It is therefore a good idea to proactively focus on performance at the design stage (even though this is <a href="https://en.wikipedia.org/wiki/Program_optimization#When_to_optimize">“the root of all evil.”</a>)</li>
+</ul>
+</li>
+<li>Let’s focus on data structures.
+<ul>
+<li>One reason: It’s a cross-cutting way to address performance across a flat profile.</li>
+<li>We will learn about one extremely simple trick that you can apply in many ways. It is definitely not the only ingredient in a fast compiler, nor is it even clearly the most important one. But it is probably an important one.</li>
+<li>Proceed to <a href="https://www.cs.cornell.edu/~asampson/blog/flattening.html">this blog post about <em>data structure flattening</em></a>.
+<ul>
+<li>Construct a simple interpreter, and try it out.</li>
+<li>Introduce a flat representation, and adjust the <code>interp</code> function accordingly.</li>
+<li>Discuss:
+<ul>
+<li>Why <em>should</em> this change be good for performance?</li>
+<li>Are there any implications for ergonomics?</li>
+</ul>
+</li>
+<li>A little performance evaluation.
+<ul>
+<li>A random program generator, so we can skip I/O.</li>
+<li>I endorse <a href="https://github.com/sharkdp/hyperfine">Hyperfine</a> for quick-and-dirty measurements like this: <code>hyperfine -w1 -r3 './target/release/flatcalc gen_interp 1234'</code></li>
+<li>I endorse <a href="https://github.com/mstange/samply">samply</a> as a simple way to see where the time goes: <code>samply record --no-open -- ./target/profiling/flatcalc gen_interp 1234</code></li>
+</ul>
+</li>
+<li>Use <a href="https://github.com/sampsyo/flatcalc/blob/main/bench.sh">my <code>bench.sh</code></a> to reproduce a full set of results.</li>
+</ul>
+</li>
+<li>Consider a different kind of interpreter that exploits the flat representation. Reflect on how we have essentially reinvented the idea of a bytecode interpreter.</li>
+</ul>
+</li>
+</ul>
+<h2 id="tasks">Tasks</h2>
+<p>There are no tasks for this lesson.
+Good luck on your course project!</p>
+<p>This is the last lesson of CS 6120. If you’re taking the <a href="../../self-guided/index.html">self-guided version of the course</a>, please fill out <a href="https://forms.gle/GuRiMa728DUvTbZQ7">this feedback form</a>. I would love to know who has taken the class—and I want your opinions about how to make it better!</p>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

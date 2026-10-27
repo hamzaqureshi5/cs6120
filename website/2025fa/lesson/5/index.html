@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Global Analysis</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 5:
+  Global Analysis
+  
+</h1>
+<ul class="links">
+  
+  <li>
+    <a href="https://github.com/sampsyo/cs6120/discussions/557" class="icon discussion">discussion thread</a>
+  </li>
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_i5apfx6t" class="icon video">global analysis &amp; optimization</a>
+  </li>
+  
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>September 30</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_i5apfx6t" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<h3 id="dominators">Dominators</h3>
+<p>Lots of definitions!</p>
+<ul>
+<li>Reminders: Successors &amp; predecessors. Paths in CFGs.</li>
+<li><em>A</em> <em>dominates</em> <em>B</em> iff all paths from the entry to <em>B</em> include <em>A</em>.</li>
+<li>The <em>dominator tree</em> is a convenient data structure for storing the dominance relationships in an entire function. The recursive children of a given node in a tree are the nodes that that node dominates.</li>
+<li><em>A</em> <em>strictly dominates</em> <em>B</em> iff <em>A</em> dominates <em>B</em> and <em>A ≠ B</em>. (Dominance is reflexive, so “strict” dominance just takes that part away.)</li>
+<li><em>A</em> <em>immediately dominates</em> <em>B</em> iff <em>A</em> dominates <em>B</em> but <em>A</em> does not strictly dominate any other node that strictly dominates <em>B</em>. (In which case <em>A</em> is <em>B</em>’s direct parent in the dominator tree.)</li>
+<li>A <em>dominance frontier</em> is the set of nodes that are just “one edge away” from being dominated by a given node. Put differently, <em>A</em>’s dominance frontier contains <em>B</em> iff <em>A</em> does not strictly dominate <em>B</em>, but <em>A</em> does dominate some predecessor of <em>B</em>.</li>
+<li><em>Post-dominance</em> is the reverse of dominance. <em>A</em> post-dominates <em>B</em> iff all paths from <em>B</em> to the exit include <em>A</em>. (You can extend the strict version, the immediate version, trees, etc. to post-dominance.)</li>
+</ul>
+<p>An algorithm for finding dominators:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>dom = {every block -&gt; all blocks}
+</span><span>dom[entry] = {entry}
+</span><span>while dom is still changing:
+</span><span>    for vertex in CFG except entry:
+</span><span>        dom[vertex] = {vertex} ∪ ⋂(dom[p] for p in vertex.preds}
+</span></code></pre>
+<p>The <code>dom</code> relation will, in the end, map each block to its set of dominators.
+We initialize it as the “complete” relation, i.e., mapping every block to the set of <em>all</em> blocks.
+The exception is the entry block, which we ensure <em>always</em> only has itself as a dominator.
+(This keeps the algorithm from being confused by blocks that jump back to the entry node.)
+The loop pares down the sets by iterating to convergence.</p>
+<p>The running time is O(n²) in the worst case.
+But there’s a trick: if you iterate over the CFG in <em>reverse post-order</em>, and the CFG is well behaved (reducible), it runs in linear time—the outer loop runs a constant number of times.</p>
+<h3 id="natural-loops">Natural Loops</h3>
+<p>Some things about loops:</p>
+<ul>
+<li><em>Natural loops</em> are strongly connected components in the CFG with a single entry.</li>
+<li>Natural loops are formed around <em>backedges</em>, which are edges from <em>A</em> to <em>B</em> where <em>B</em> dominates <em>A</em>.
+<ul>
+<li>(Side note: There are actually two common definitions of <em>backedges:</em> this one, and one that relies on a depth-first search (DFS). By the other definition, a backedge is any edge that takes you to an already-visited node during DFS. The relationship between these two definitions is not 100% clear to me, although they are certainly not equivalent, at least for irreducible CFGs.)</li>
+</ul>
+</li>
+<li>A natural loop is the smallest set of vertices <em>L</em> including <em>A</em> and <em>B</em> such that, for every <em>v</em> in <em>L</em>, either all the predecessors of <em>v</em> are in <em>L</em> or <em>v</em>=<em>B</em>.</li>
+<li>A CFG is <em>reducible</em> iff every backedge has a natural loop.
+<ul>
+<li>A language that only has <code>for</code>, <code>while</code>, <code>if</code>, <code>break</code>, <code>continue</code>, etc. can only generate reducible CFGs. You need <code>goto</code> or something to generate irreducible CFGs.</li>
+</ul>
+</li>
+</ul>
+<h3 id="loop-invariant-code-motion">Loop-Invariant Code Motion</h3>
+<p>Here’s a preview of what we’ll do with natural loops.
+The <em>loop-invariant code motion</em> (LICM) optimization transforms code like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>let a = ...;
+</span><span>let b = ...;
+</span><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    f(a * b);
+</span><span>}
+</span></code></pre>
+<p>Into this, by moving code that does the same thing on every iteration to the loop’s <em>preheader</em> block:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>let a = ...;
+</span><span>let b = ...;
+</span><span>let c = a * b;
+</span><span>for (let i = 0; i &lt; 100; ++i) {
+</span><span>    f(c);
+</span><span>}
+</span></code></pre>
+<p>That is, we want to move code from inside the loop to before it—when that computation always results in the same value.
+We’ll return to LICM in <a href="../8/index.html">Lesson 8</a>.</p>
+<h2 id="tasks">Tasks</h2>
+<ul>
+<li>Implement some dominance utilities:
+<ul>
+<li>Find dominators for a function.</li>
+<li>Construct the dominance tree.</li>
+<li>Compute the dominance frontier.</li>
+</ul>
+</li>
+<li>Devise a way to test your implementations. For example, is there a way you can algorithmically confirm that a block <em>A</em> dominates a block <em>B</em>? While <em>computing</em> these sets should be cheap, <em>checking</em> their output could use slow, naive algorithms.</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

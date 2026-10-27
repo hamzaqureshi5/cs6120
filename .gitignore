@@ -1,0 +1,11 @@
+# Copyrighted papers/slides are not redistributed — run ./fetch_pdfs.sh
+*.pdf
+*.ps
+*.part
+# SIGPLAN page mirror (third-party site) — read online instead
+website/sigplan-empirical-evaluation/
+# Python / editor junk
+__pycache__/
+*.pyc
+.venv/
+.DS_Store

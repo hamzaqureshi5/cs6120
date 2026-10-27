@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: From Fragile Hacks to Formal Guarantees: How Alive Made LLVM Safer</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="From Fragile Hacks to Formal Guarantees: How Alive Made LLVM Safer">
+<meta property="og:description"
+    content="Background: When “Optimizations” Break Your Compiler
+Modern compilers apply thousands of peephole optimizations—tiny rewrites that simplify or speed up instruction sequences. For example:
+%1 = xor i32 %x, -1
+%2 = add i32 %1, 3333">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="../index.html">
+    The CS 6120 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>From Fragile Hacks to Formal Guarantees: How Alive Made LLVM Safer</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Nikil Shyamsunder,
+      
+        Shihan Fang,
+      
+        Joseph Maheshe,
+      
+        Ruolin Ye,
+      
+        I-Ting Tsai
+      
+      <span>
+    
+    <time datetime="2025-10-16">
+      October 16, 2025
+    </time>
+  </p>
+  <h2 id="background-when-optimizations-break-your-compiler">Background: When “Optimizations” Break Your Compiler</h2>
+<p>Modern compilers apply thousands of peephole optimizations—tiny rewrites that simplify or speed up instruction sequences. For example:</p>
+<pre data-lang="llvm" style="background-color:#ffffff;color:#303030;" class="language-llvm "><code class="language-llvm" data-lang="llvm"><span>%1 = xor i32 %x, -1
+</span><span>%2 = add i32 %1, 3333
+</span></code></pre>
+<p>can be safely replaced by:</p>
+<pre data-lang="llvm" style="background-color:#ffffff;color:#303030;" class="language-llvm "><code class="language-llvm" data-lang="llvm"><span>%2 = sub i32 3332, %x
+</span></code></pre>
+<p>to remove unnecessary operations.<br />
+These optimizations seem trivial, but they’re a minefield. A single missed corner case, say, an overflow or a shift by an invalid amount, can silently break every program compiled with that version. LLVM’s heavy use of undefined behavior makes this even trickier.</p>
+<p>The 2015 PLDI paper <strong>“Provably Correct Peephole Optimizations with Alive”</strong> by Lopes et al. introduces a tool designed to make such optimizations <em>provably safe</em>. It offers a rare blend of <strong>formal reasoning</strong> and <strong>everyday compiler engineering</strong>.</p>
+<h2 id="the-core-idea-correctness-by-construction">The Core Idea: Correctness by Construction</h2>
+<p><strong>Alive</strong> is a domain-specific language (DSL) that lets LLVM developers specify transformations declaratively and automatically check whether they are correct using an SMT (Satisfiability Modulo Theories) solver.</p>
+<p>Instead of writing and reasoning about C++ code directly, developers describe an optimization at a higher level, and Alive:</p>
+<ul>
+<li>
+<p><strong>Verifies correctness.</strong><br />
+It checks three logical conditions:<br />
+(a) the target code is defined whenever the source is;<br />
+(b) the target doesn’t introduce new “poison” or undefined behavior;<br />
+(c) both versions produce equivalent results.</p>
+</li>
+<li>
+<p><strong>Models undefined behavior precisely.</strong><br />
+Alive captures LLVM’s three nuanced forms—<code>undef</code>, <code>poison</code>, and true undefined—and enforces correctness even under these relaxed semantics.</p>
+</li>
+<li>
+<p><strong>Infers attributes automatically.</strong><br />
+It can infer when to safely add or preserve flags like <code>nsw</code> (no signed wrap) or <code>nuw</code> (no unsigned wrap), avoiding both over-conservatism and subtle unsoundness.</p>
+</li>
+<li>
+<p><strong>Generates usable LLVM code.</strong><br />
+Once proven correct, Alive outputs verified C++ that drops directly into LLVM’s <code>InstCombine</code> pass.</p>
+</li>
+</ul>
+<p>Empirically, the authors translated 334 real LLVM optimizations, finding <strong>8 genuine bugs</strong>, most involving unintended undefined behavior. Several of these fixes landed in LLVM itself.</p>
+<h2 id="practicality-is-alive-feasible-for-everyday-development">Practicality: Is Alive Feasible for Everyday Development?</h2>
+<p>One discussion point that came up repeatedly in class was: <em>how practical is Alive to use, given that verification can take hours for complex bit-widths or multiplication-heavy rules?</em></p>
+<p>The authors note that Alive sometimes spends <strong>hours</strong> proving correctness for 64-bit cases, especially involving division or memory. Yet as we discussed, this verification is a <strong>one-time cost</strong>, done at development or CI time—not during every compilation. Spending a few hours once to gain permanent correctness guarantees is, in practice, cheaper than debugging miscompilations months later.</p>
+<p>Moreover, much of the runtime variance stems from SMT solver heuristics. Students raised the idea of introducing <strong>lighter-weight heuristics or incomplete checks</strong>, a “fast mode” that provides high confidence but not full proof. Such an approach could make Alive more interactive for day-to-day patch validation while deferring full proofs to overnight CI.</p>
+<p>As for <strong>annotation inference</strong>, the SMT-based attribute synthesis is powerful but expensive. Future work could explore simplified constraint systems or symbolic precomputation to make attribute inference more scalable.</p>
+<h2 id="beyond-peepholes-toward-global-and-control-flow-optimizations">Beyond Peepholes: Toward Global and Control-Flow Optimizations</h2>
+<p>Alive deliberately focuses on <strong>local transformations</strong>, those that operate within a single SSA expression tree.<br />
+This focus makes verification tractable, but it raises a natural question: can the approach scale to larger, control-flow–based optimizations or interprocedural passes?</p>
+<p>Class discussion highlighted the difficulty here: correctness at the local level doesn’t always guarantee correctness globally.<br />
+An optimization might be valid in isolation but alter observable behavior when reordered with memory accesses or across branches. Some LLVM bugs in the past, like incorrect reordering of memory operations, arose exactly this way.</p>
+<p>Extending Alive would therefore require reasoning about context: defining equivalence in terms of whole-program semantics rather than isolated snippets. One possible direction would be to design higher-level abstractions over LLVM IR (e.g., summarizing memory and control effects) so that Alive could verify that a local rewrite remains correct in any surrounding program.</p>
+<p>This would bridge the gap between local verification and contextual equivalence, ensuring that optimizations proven safe in isolation remain safe when composed in larger pipelines.</p>
+<h2 id="composition-when-verified-optimizations-interfere">Composition: When Verified Optimizations Interfere</h2>
+<p>Another recurring question was whether individually correct optimizations can still go wrong when composed. In principle, yes, if one pass breaks a precondition expected by another.</p>
+<p>Alive verifies each optimization in isolation, not the interactions between them. While its formalism guarantees that each rewrite preserves semantics on its own, compositional correctness still depends on LLVM’s broader design discipline. If an earlier pass removes attributes that a later one assumes, correctness could fail despite both being “provably correct” individually.</p>
+<p>This points to a broader notion of the <strong>Trusted Computing Base (TCB):</strong> we trust that (1) LLVM’s semantics are faithfully modeled, and (2) the C++ code generator from Alive to LLVM is itself correct. Any divergence there, say, if LLVM IR evolves, would lie outside the formal guarantees.</p>
+<p>Still, Alive’s focus on LLVM’s well-defined IR gives it an edge. Unlike older compilers whose optimization passes manipulated opaque internal data structures, LLVM’s typed SSA form provides a shared semantics that makes such reasoning possible at all.</p>
+<h2 id="correctness-vs-performance-a-worthwhile-tradeoff">Correctness vs. Performance: A Worthwhile Tradeoff?</h2>
+<p>One of the liveliest debates centered on whether full formal verification is worth its computational cost.</p>
+<p>Alive’s proof generation can be slow, but this slowness only happens once per optimization. Compared to the potential cost of miscompilation, the tradeoff is almost always favorable, especially for infrastructure used by thousands of downstream projects.</p>
+<p>Several students noted, though, that compiler designers sometimes accept “slightly wrong but fast” optimizations in less safety-critical domains, a nod to the field of approximate computing. For systems software, however, correctness overwhelmingly wins. As one classmate summarized: “I’d rather spend hours proving one optimization right than weeks tracking down one that silently broke user code.”</p>
+<h2 id="broader-impact-and-future-outlook">Broader Impact and Future Outlook</h2>
+<p>Alive has since inspired successors like <strong>Alive2</strong>, <strong>Souper</strong>, and verification frameworks for other IRs. Its success illustrates that formal methods don’t have to be all-or-nothing; they can be incremental, usable, and developer-friendly.</p>
+<p>By embedding formal reasoning inside everyday engineering workflows, Alive turned proof generation from an academic exercise into a practical safeguard for production compilers.</p>
+<p>Looking forward, integrating heuristic verification modes, multi-pass reasoning, and control-flow abstraction could bring Alive’s spirit to the next generation of compiler infrastructures, helping ensure that “optimization” never again means “maybe wrong, but faster.”</p>
+<h2 id="references">References</h2>
+<p>Lopes, N. P., Menendez, D., Nagarakatte, S., &amp; Regehr, J. (2015). <em>Provably Correct Peephole Optimizations with Alive.</em> PLDI 2015.</p>
+
+  <footer>
+    
+    <p>Nikil Shyamsunder, Shihan Fang, Joseph Maheshe, Ruolin Ye, and I-Ting Tsai are all students in Advanced Compilers.</p>
+
+    
+    <p>This is the course blog for <a href="../../index.html">CS 6120</a>, the PhD-level compilers course in the computer science department at Cornell.
+You can subscribe to <a href="../index.html">posts on the blog</a> with <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

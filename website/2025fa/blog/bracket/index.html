@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: [bracket]: Bridging Bril and Racket Educational Compilers</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="[bracket]: Bridging Bril and Racket Educational Compilers">
+<meta property="og:description"
+    content="Code: https:&#x2F;&#x2F;github.com&#x2F;maheshejs&#x2F;cs6120pr
+What was the goal?
+The goal of this project was to connect two educationally-focused intermediate languages: Racket’s exprs-lang-v9 subset from UBC’s CPSC411 (Compiler Construction) course and Bril, the Big Red Intermediate Language. While Bril already has TypeScript and Rust frontends, these support only limited subsets of their source languages. Racket’s exprs-lang-v9, in contrast, is a more expressive subset that includes first-class procedures, making it an ideal candidate for generating interesting Bril benchmarks. The project aimed to compile exprs-lang-v9 programs—which normally compile all the way down to x64 machine code into Bril programs using the dynamic type extension.
+What did I do?
+Design Overview
+My compiler takes programs in proc-imp-cmf-lang-v7 (an intermediate representation in the CPSC411 compiler pipeline) and lowers them to Bril JSON. This particular IR was chosen because it sits at the sweet spot after all high-level abstractions have been lowered but before architecture-specific concerns like register allocation.
+Choosing this intermediate language was itself a significant design decision. Initially, I considered starting very close to assembly since Bril is close to assembly. However, x64 and lower-level languages in the CPSC411 pipeline allow copying a label to a location (treating code as data), which Bril does not support. This would have required designing an abstract interpreter to uncover labels in locations and abstract physical locations to abstract locations, plus extensive instruction patching. That turned out to be cumbersome.
+Instead, I chose proc-imp-cmf-lang-v7, which perfectly satisfied my requirements:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="../index.html">
+    The CS 6120 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>[bracket]: Bridging Bril and Racket Educational Compilers</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Joseph Maheshe
+      
+      <span>
+    
+    <time datetime="2025-12-16">
+      December 16, 2025
+    </time>
+  </p>
+  <p><strong>Code:</strong> <a href="https://github.com/maheshejs/cs6120pr">https://github.com/maheshejs/cs6120pr</a></p>
+<h2 id="what-was-the-goal">What was the goal?</h2>
+<p>The goal of this project was to connect two educationally-focused intermediate languages: Racket’s <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v9_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv9..rkt%29._exprs-lang-v9%29%29">exprs-lang-v9</a> subset from UBC’s <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/index.html">CPSC411</a> (Compiler Construction) course and Bril, the Big Red Intermediate Language. While Bril already has TypeScript and Rust frontends, these support only limited subsets of their source languages. Racket’s <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v9_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv9..rkt%29._exprs-lang-v9%29%29">exprs-lang-v9</a>, in contrast, is a more expressive subset that includes first-class procedures, making it an ideal candidate for generating interesting Bril benchmarks. The project aimed to compile <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v9_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv9..rkt%29._exprs-lang-v9%29%29">exprs-lang-v9</a> programs—which normally compile all the way down to x64 machine code into Bril programs using the dynamic type extension.</p>
+<h2 id="what-did-i-do">What did I do?</h2>
+<h3 id="design-overview">Design Overview</h3>
+<p>My compiler takes programs in <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._proc-imp-cmf-lang-v7%29%29">proc-imp-cmf-lang-v7</a> (an intermediate representation in the CPSC411 compiler pipeline) and lowers them to Bril JSON. This particular IR was chosen because it sits at the sweet spot after all high-level abstractions have been lowered but before architecture-specific concerns like register allocation.</p>
+<p>Choosing this intermediate language was itself a significant design decision. Initially, I considered starting very close to assembly since Bril is close to assembly. However, x64 and lower-level languages in the CPSC411 pipeline allow copying a label to a location (treating code as data), which Bril does not support. This would have required designing an abstract interpreter to uncover labels in locations and abstract physical locations to abstract locations, plus extensive instruction patching. That turned out to be cumbersome.</p>
+<p>Instead, I chose <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._proc-imp-cmf-lang-v7%29%29">proc-imp-cmf-lang-v7</a>, which perfectly satisfied my requirements:</p>
+<ul>
+<li>It already uses abstract locations (before register allocation and spillage)</li>
+<li>It hasn’t yet transformed calls into low-level calling conventions</li>
+<li>Its predicates can be easily transformed to basic blocks with appropriate labels</li>
+<li>Calls can be directly translated to Bril’s function calls</li>
+</ul>
+<p>Here’s the grammar for <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._proc-imp-cmf-lang-v7%29%29">proc-imp-cmf-lang-v7</a>:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>proc-imp-cmf-lang-v7 : grammar?
+</span><span>
+</span><span>p         ::= (module (define label (lambda (aloc ...) entry)) ... entry)
+</span><span>entry     ::= tail
+</span><span>pred      ::= (relop opand opand) | (true) | (false) | (not pred)
+</span><span>          |   (begin effect ... pred) | (if pred pred pred)
+</span><span>tail      ::= value | (call triv opand ...) 
+</span><span>          |   (begin effect ... tail) | (if pred tail tail)
+</span><span>value     ::= triv | (binop opand opand) | (call triv opand ...)
+</span><span>effect    ::= (set! aloc value) | (begin effect ... effect)
+</span><span>          |   (if pred effect effect)
+</span><span>opand     ::= int64 | aloc
+</span><span>triv      ::= opand | label
+</span><span>binop     ::= * | + | - | bitwise-and | bitwise-ior 
+</span><span>          |   bitwise-xor | arithmetic-shift-right
+</span><span>relop     ::= &lt; | &lt;= | = | &gt;= | &gt; | !=
+</span><span>aloc      ::= aloc?
+</span><span>label     ::= label?
+</span><span>int64     ::= int64?
+</span></code></pre>
+<p>The programs being compiled originate from <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a>, a much higher-level source language with dynamic types and first-class data. Here’s its grammar:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>exprs-lang-v7 : grammar?
+</span><span>
+</span><span>p         ::= (module (define x (lambda (x ...) value)) ... value)
+</span><span>value     ::= triv | (let ([x value] ...) value)
+</span><span>          |   (if value value value) | (call value value ...)
+</span><span>triv      ::= x | fixnum | #t | #f | empty 
+</span><span>          |   (void) | (error uint8) | ascii-char-literal
+</span><span>x         ::= name? | prim-f
+</span><span>prim-f    ::= binop | unop
+</span><span>binop     ::= * | + | - | eq? | &lt; | &lt;= | &gt; | &gt;=
+</span><span>unop      ::= fixnum? | boolean? | empty? | void?
+</span><span>          |   ascii-char? | error? | not
+</span><span>uint8     ::= uint8?
+</span><span>ascii-char-literal ::= ascii-char-literal?
+</span><span>fixnum    ::= int61?
+</span></code></pre>
+<p>The key design challenge was bridging the semantic gap between these educational IRs. Racket’s <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a> uses a dynamically-typed, tagged object representation where values are <strong>ptrs</strong> (64-bit words with tag bits encoding type information), while Bril uses explicit <code>any</code> types with runtime type checking.</p>
+<h3 id="implementation-the-bracket-pass">Implementation: The <code>bracket</code> Pass</h3>
+<p>The compiler is implemented as a single pass called <code>bracket</code> that performs a complete translation from <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._proc-imp-cmf-lang-v7%29%29">proc-imp-cmf-lang-v7</a> to Bril JSON.</p>
+<h4 id="tagged-object-representation-translation">Tagged Object Representation Translation</h4>
+<p>The source language uses a sophisticated tagging scheme where:</p>
+<ul>
+<li><strong>Fixnums</strong> use 3 least-significant bits as a primary tag (<code>#b000</code>), with the remaining 61 bits holding the actual integer value shifted left by 3</li>
+<li><strong>Non-fixnum immediates</strong> use a 3-bit primary tag (<code>#b110</code>) plus 5 additional bits for secondary tags</li>
+</ul>
+<p>This representation enables efficient operations: for example, <code>(* 8 n)</code> directly represents fixnum <code>n</code>, allowing addition and subtraction without untagging since <code>8x + 8y = 8(x + y)</code>.</p>
+<p>Since Bril’s core instruction set doesn’t include bitwise operations like <code>bitwise-and</code>, <code>bitwise-ior</code>, <code>bitwise-xor</code>, and <code>arithmetic-shift-right</code>, I used GenAI to generate a <strong>standard library</strong> that implements these operations using only Bril’s integer arithmetic and boolean logic:</p>
+<ul>
+<li><strong><code>@bit(x: int): int</code></strong> - Extracts the least significant bit</li>
+<li><strong><code>@bitand(a: int, b: int): int</code></strong> - Implements bitwise AND through loops</li>
+<li><strong><code>@bitor(a: int, b: int): int</code></strong> - Implements bitwise OR</li>
+<li><strong><code>@bitxor(a: int, b: int): int</code></strong> - Implements bitwise XOR</li>
+<li><strong><code>@ashr(x: int, n: int): int</code></strong> - Implements arithmetic shift right with sign extension</li>
+</ul>
+<p>I implemented the logic in <code>bracket</code> to recognize when a <code>binop</code> is a bitwise operation and generate the appropriate calls to these standard library functions. These functions are prepended to every compiled program.</p>
+<h4 id="control-flow-translation">Control Flow Translation</h4>
+<p>The source IR uses predicates (relops, boolean combinators) that must be converted to Bril’s branch instructions. My <code>compile-pred</code> function:</p>
+<ul>
+<li>Translates relops directly to Bril comparison operations</li>
+<li>Handles <code>!=</code> by compiling as <code>(not (= op1 op2))</code></li>
+<li>Transforms <code>not</code>, <code>(true)</code>, and <code>(false)</code> appropriately</li>
+<li>Threads effects through predicate computation</li>
+<li>Handles nested <code>if</code> expressions by creating fresh labels</li>
+</ul>
+<h4 id="function-calls-and-tail-calls">Function Calls and Tail Calls</h4>
+<p>The compiler distinguishes between tail calls and non-tail calls:</p>
+<ul>
+<li>Tail calls in <code>main</code> untag the result (divide by 8) before printing. Since <code>print</code> is not supported in <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a> and its pipelined IRs, the translation replaces <code>main</code>’s <code>ret</code> instructions with <code>print</code> to output the result in Bril.</li>
+<li>Tail calls in other functions emit a <code>ret</code> instruction</li>
+<li>Non-tail calls store results in fresh temporaries</li>
+<li>All arguments are evaluated to temporaries before calling</li>
+</ul>
+<h4 id="module-structure">Module Structure</h4>
+<p>The source program consists of a module with multiple function definitions plus a main entry expression. I compile this by:</p>
+<ul>
+<li>Creating a Bril function for each defined function with <code>any</code>-typed parameters</li>
+<li>Creating a special <code>main</code> function that compiles the module’s entry expression</li>
+<li>Prepending the standard library functions to the output JSON</li>
+</ul>
+<h3 id="technical-details">Technical Details</h3>
+<p>The compiler uses helper functions for:</p>
+<ul>
+<li>Converting abstract locations and labels to Bril variable/function names</li>
+<li>Generating unique temporary variable and label names</li>
+<li>Creating Bril instruction JSON structures</li>
+<li>Handling operands (integers need const instructions, variables are used directly)</li>
+<li>Accumulating instructions through emit closures for straightforward linear translation</li>
+</ul>
+<h2 id="were-you-successful">Were you successful?</h2>
+<p>I evaluated success through correctness and expressiveness, with analysis of translation overhead.</p>
+<h3 id="correctness-evaluation">Correctness Evaluation</h3>
+<p>I reimplemented 10 core Bril benchmarks in <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a> and thoroughly tested <code>bracket</code>’s translation by comparing interpreter results:</p>
+<ul>
+<li><code>ackermann</code>, <code>delannoy</code>, <code>fitsinside</code>, <code>loopfact</code>, <code>recfact</code></li>
+<li><code>catalan</code>, <code>fib_recursive</code>, <code>gcd</code>, <code>mccarthy91</code>, <code>triangle</code></li>
+</ul>
+<p>All 10 benchmarks produced correct outputs matching the original Bril versions.</p>
+<h3 id="lines-of-code-comparison">Lines of Code Comparison</h3>
+<table><thead><tr><th>Benchmark</th><th style="text-align: right">SLOC (<a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a>)</th><th style="text-align: right">TLOC (Bril)*</th><th style="text-align: right">Original LOC</th><th style="text-align: right">Overhead</th></tr></thead><tbody>
+<tr><td><code>ackermann</code></td><td style="text-align: right">10</td><td style="text-align: right">155</td><td style="text-align: right">31</td><td style="text-align: right">5.0×</td></tr>
+<tr><td><code>catalan</code></td><td style="text-align: right">16</td><td style="text-align: right">309</td><td style="text-align: right">33</td><td style="text-align: right">9.4×</td></tr>
+<tr><td><code>delannoy</code></td><td style="text-align: right">11</td><td style="text-align: right">160</td><td style="text-align: right">63</td><td style="text-align: right">2.5×</td></tr>
+<tr><td><code>fib_recursive</code></td><td style="text-align: right">11</td><td style="text-align: right">182</td><td style="text-align: right">39</td><td style="text-align: right">4.7×</td></tr>
+<tr><td><code>fitsinside</code></td><td style="text-align: right">8</td><td style="text-align: right">129</td><td style="text-align: right">15</td><td style="text-align: right">8.6×</td></tr>
+<tr><td><code>gcd</code></td><td style="text-align: right">13</td><td style="text-align: right">149</td><td style="text-align: right">40</td><td style="text-align: right">3.7×</td></tr>
+<tr><td><code>loopfact</code></td><td style="text-align: right">12</td><td style="text-align: right">181</td><td style="text-align: right">27</td><td style="text-align: right">6.7×</td></tr>
+<tr><td><code>mccarthy91</code></td><td style="text-align: right">8</td><td style="text-align: right">179</td><td style="text-align: right">22</td><td style="text-align: right">8.1×</td></tr>
+<tr><td><code>recfact</code></td><td style="text-align: right">8</td><td style="text-align: right">181</td><td style="text-align: right">31</td><td style="text-align: right">5.8×</td></tr>
+<tr><td><code>triangle</code></td><td style="text-align: right">8</td><td style="text-align: right">134</td><td style="text-align: right">20</td><td style="text-align: right">6.7×</td></tr>
+</tbody></table>
+<p><em>*Excluding standard library (132 LOC)</em></p>
+<h3 id="dynamic-instruction-count-comparison">Dynamic Instruction Count Comparison</h3>
+<table><thead><tr><th>Benchmark</th><th style="text-align: right">Dynamic Instructions (Bril)</th><th style="text-align: right">Original Dynamic Instructions</th><th style="text-align: right">Overhead</th></tr></thead><tbody>
+<tr><td><code>ackermann</code></td><td style="text-align: right">100,136,893</td><td style="text-align: right">1,464,231</td><td style="text-align: right">68.4×</td></tr>
+<tr><td><code>catalan</code></td><td style="text-align: right">40,068,566</td><td style="text-align: right">659,378</td><td style="text-align: right">60.8×</td></tr>
+<tr><td><code>delannoy</code></td><td style="text-align: right">242,519,048</td><td style="text-align: right">5,748,752</td><td style="text-align: right">42.2×</td></tr>
+<tr><td><code>fib_recursive</code></td><td style="text-align: right">132,182</td><td style="text-align: right">2,693</td><td style="text-align: right">49.1×</td></tr>
+<tr><td><code>fitsinside</code></td><td style="text-align: right">1,242</td><td style="text-align: right">10</td><td style="text-align: right">124.2×</td></tr>
+<tr><td><code>gcd</code></td><td style="text-align: right">3,407</td><td style="text-align: right">46</td><td style="text-align: right">74.1×</td></tr>
+<tr><td><code>loopfact</code></td><td style="text-align: right">9,988</td><td style="text-align: right">116</td><td style="text-align: right">86.1×</td></tr>
+<tr><td><code>mccarthy91</code></td><td style="text-align: right">191,429</td><td style="text-align: right">1,385</td><td style="text-align: right">138.2×</td></tr>
+<tr><td><code>recfact</code></td><td style="text-align: right">8,265</td><td style="text-align: right">104</td><td style="text-align: right">79.5×</td></tr>
+<tr><td><code>triangle</code></td><td style="text-align: right">31,684</td><td style="text-align: right">188</td><td style="text-align: right">168.5×</td></tr>
+</tbody></table>
+<p><strong>Average overhead</strong>: 89.1× dynamic instructions, 6.2× static lines of code</p>
+<h3 id="expressiveness-of-exprs-lang-v7">Expressiveness of <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a></h3>
+<p><a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a> is significantly more expressive than Bril for writing these benchmarks. Most could be written in under 15 lines. For example, factorial using recursion:</p>
+<pre data-lang="racket" style="background-color:#ffffff;color:#303030;" class="language-racket "><code class="language-racket" data-lang="racket"><span>(</span><span style="color:#9d3293;">module
+</span><span>    (</span><span style="color:#9d3293;">define </span><span>fact
+</span><span>      (</span><span style="color:#9d3293;">lambda </span><span>(n)
+</span><span>        (</span><span style="color:#9d3293;">if </span><span>(call &lt;= n </span><span style="color:#f89829;">1</span><span>)
+</span><span>          </span><span style="color:#f89829;">1
+</span><span>          (call * (call fact (call - n </span><span style="color:#f89829;">1</span><span>)) n))))
+</span><span>    (</span><span style="color:#9d3293;">let </span><span>([arg.x </span><span style="color:#f89829;">8</span><span>])
+</span><span>      (call fact arg.x)))
+</span></code></pre>
+<p>This concise implementation demonstrates the expressive power of the Racket subset with first-class functions, natural recursion, and nested expressions.</p>
+<h3 id="translation-overhead-analysis">Translation Overhead Analysis</h3>
+<p>However, this expressiveness comes at significant cost. The factorial example translates to approximately <strong>180 lines of Bril code</strong> (not counting the standard library) and executes <strong>8,265 dynamic instructions</strong> compared to <strong>104 dynamic instructions</strong> in the original hand-written Bril benchmark.</p>
+<p>This dramatic <strong>79× overhead</strong> comes primarily from:</p>
+<ol>
+<li><strong>Tagged object representation</strong>: Every integer operation requires tag checking, tagging, and untagging</li>
+<li><strong>Dynamic type checking</strong>: Safe primitive operations perform runtime type checks</li>
+<li><strong>Bitwise operation simulation</strong>: Each bitwise operation expands to a loop with 15-20+ instructions</li>
+</ol>
+<p>This demonstrates the fundamental tradeoff: <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._exprs-lang-v7%29%29">exprs-lang-v7</a>’s high-level abstractions and dynamic typing make writing correct programs much easier, but translation to Bril’s lower-level model introduces substantial overhead. The generated code is correct but far from optimal.</p>
+<h3 id="limitations-and-scope-decisions">Limitations and Scope Decisions</h3>
+<h4 id="first-class-procedures-and-closures">First-Class Procedures and Closures</h4>
+<p>I had originally planned to include 5 additional benchmarks using higher-order functions and continuation-passing style. However, fully implementing <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v9_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv9..rkt%29._exprs-lang-v9%29%29">exprs-lang-v9</a> with closure conventions proved infeasible because:</p>
+<ul>
+<li>Bril doesn’t support labels-as-values</li>
+<li>Supporting true closures would require <strong>defunctionalization</strong>, converting higher-order functions into first-order data structures plus a dispatcher, a compiler technique that I learned during the project</li>
+<li>This transformation seemed complex enough to warrant its own project</li>
+</ul>
+<h4 id="heap-allocation-and-structured-data">Heap Allocation and Structured Data</h4>
+<p><a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v9_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv9..rkt%29._exprs-lang-v9%29%29">exprs-lang-v9</a> builds on <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v8_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv8..rkt%29._exprs-lang-v8%29%29">exprs-lang-v8</a>, which introduces structured data (pairs, vectors) and heap allocation. While the primitives map fairly directly to Bril’s memory extension, there are subtle differences:</p>
+<ul>
+<li><a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v8_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv8..rkt%29._exprs-lang-v8%29%29">exprs-lang-v8</a> doesn’t free memory; manual memory management in Bril would be required</li>
+<li><a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v8_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv8..rkt%29._exprs-lang-v8%29%29">exprs-lang-v8</a> allows byte-level offsets; Bril’s <code>ptradd</code> increments by word size (8 bytes)</li>
+<li>These differences would require additional translation logic and memory management infrastructure</li>
+</ul>
+<p>These limitations meant higher-order and structured-data benchmarks remained out of scope.</p>
+<h3 id="quality-of-lowering">Quality of Lowering</h3>
+<p>Despite the overhead, the generated code has good structural properties:</p>
+<ul>
+<li>Control flow is direct with no unnecessary jumps</li>
+<li>Variable usage is straightforward (one definition per abstract location)</li>
+<li>The call graph mirrors the source program exactly</li>
+<li>The main inefficiency is bitwise operations; with native Bril support, generated code would be much more efficient</li>
+</ul>
+<h2 id="conclusion">Conclusion</h2>
+<p>This project successfully bridges two educational compiler infrastructures, enabling Racket’s subset to generate Bril benchmarks. The implementation handles complete translation from <a href="https://www.students.cs.ubc.ca/~cs-411/2022w2/v7_Languages.html#%28def._%28%28lib._cpsc411%2Flangs%2Fv7..rkt%29._proc-imp-cmf-lang-v7%29%29">proc-imp-cmf-lang-v7</a> to Bril JSON, including integration with a GenAI-generated standard library for bitwise operations.</p>
+<p>While there are significant limitations—particularly around first-class procedures, closures, and the 79× overhead from tag operations—the compiler produces correct code for a substantial subset of programs. The 10 benchmark translations demonstrate that the core infrastructure works reliably.</p>
+<p>The project reveals important insights about semantic gaps between high-level, dynamically-typed educational languages and lower-level IRs. The dramatic overhead suggests that either:</p>
+<ol>
+<li>Bril should consider adding native bitwise operations as a core extension</li>
+<li>Compilers targeting Bril from dynamic languages should consider alternative representation strategies</li>
+</ol>
+<h3 id="future-work">Future Work</h3>
+<p>Several extensions would make this compiler more powerful:</p>
+<ul>
+<li><strong>Defunctionalization for closures</strong> to support true first-class procedures</li>
+<li><strong>Memory extension support</strong> for heap-allocated structures (pairs, vectors)</li>
+<li><strong>Optimization during lowering</strong> to avoid unnecessary tag operations when types can be inferred statically</li>
+<li><strong>Native bitwise operations</strong> in Bril core to eliminate standard library overhead</li>
+<li><strong>Better calling conventions</strong> using Bril’s speculative extension for optimistic tag assumptions</li>
+</ul>
+<p>The code demonstrates that educational IRs can interoperate successfully, even across very different semantic models. Racket’s pedagogical compiler infrastructure can serve as a rich source of interesting, expressive Bril programsthough the translation overhead suggests this approach is best suited for correctness testing and educational purposes rather than performance benchmarking.</p>
+<p><strong>GenAI Usage</strong>: I used Gemini for the standard library.</p>
+
+  <footer>
+    
+    <p>Joseph is an ECE PhD student at Cornell. His interests vary by week :)</p>
+
+    
+    <p>This is the course blog for <a href="../../index.html">CS 6120</a>, the PhD-level compilers course in the computer science department at Cornell.
+You can subscribe to <a href="../index.html">posts on the blog</a> with <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: BrilIR: an MLIR dialect for Bril</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="BrilIR: an MLIR dialect for Bril">
+<meta property="og:description"
+    content="Source Repo
+Introduction
+MLIR is a project within the LLVM ecosystem designed to build reusable and extensible compiler infrastructure through its multi-level intermediate representation. MLIR enables the representation of multiple abstraction levels at the same time through its extensible system of dialects, each of which defines its own operations, types, and semantics. These dialects can coexist within a single IR and are progressively lowered into lower-level dialects, such as LLVM, through MLIR’s dialect conversion framework. Beyond extensibility, MLIR encodes best practices directly into its IR design, reflecting lessons learned by the LLVM team from building multiple prior IRs.
+The goal of this project is to create an MLIR dialect for Bril that defines the operations and types supported by Bril, along with a set of tools built around this dialect, namely:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="../index.html">
+    The CS 6120 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>BrilIR: an MLIR dialect for Bril</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Nipat Chenthanakij
+      
+      <span>
+    
+    <time datetime="2025-12-15">
+      December 15, 2025
+    </time>
+  </p>
+  <p><a href="https://github.com/Mond45/brilir">Source Repo</a></p>
+<h1 id="introduction">Introduction</h1>
+<p><a href="https://mlir.llvm.org/">MLIR</a> is a project within the LLVM ecosystem designed to build reusable and extensible compiler infrastructure through its multi-level intermediate representation. MLIR enables the representation of multiple abstraction levels at the same time through its extensible system of dialects, each of which defines its own operations, types, and semantics. These dialects can coexist within a single IR and are progressively lowered into lower-level dialects, such as LLVM, through MLIR’s dialect conversion framework. Beyond extensibility, MLIR encodes <a href="https://mlir.llvm.org/docs/Rationale/Rationale/">best practices</a> directly into its IR design, reflecting lessons learned by the LLVM team from building multiple prior IRs.</p>
+<p>The goal of this project is to create an MLIR dialect for Bril that defines the operations and types supported by Bril, along with a set of tools built around this dialect, namely:</p>
+<ul>
+<li>A Bril -&gt; MLIR converter</li>
+<li>An MLIR -&gt; Bril converter</li>
+<li>A dialect conversion pass that lowers the Bril dialect into standard MLIR dialects (<code>arith</code>, <code>cf</code>, <code>func</code>) and ultimately into <code>llvm</code>. This conversion pass effectively implements a compiler frontend for Bril, targeting anything that LLVM itself can target.</li>
+</ul>
+<p>I initially aimed to support the subset of Bril core and floating-point extensions, but ultimately decided to pivot to the core and memory extensions. The main reason for this decision is that floating-point lowering and operation representations are largely similar to integer operations in Bril core, whereas the memory extension is more instructive and requires more deliberate design choices for lowering and semantic representation.</p>
+<h1 id="the-implementation">The Implementation</h1>
+<p>I followed the overall project structure of the <a href="https://mlir.llvm.org/docs/Tutorials/Toy/">MLIR Toy tutorial</a>, which builds a custom dialect for a simple “Toy” language and a lowering pipeline that ultimately produces LLVM IR through the dialect conversion framework.</p>
+<p>The implementation can be broken down into four major components:</p>
+<ul>
+<li>The Bril dialect definition</li>
+<li>The Bril -&gt; MLIR converter</li>
+<li>The MLIR -&gt; Bril converter</li>
+<li>The Bril -&gt; <code>std</code> dialect conversion pass</li>
+</ul>
+<h2 id="the-bril-dialect">The Bril Dialect</h2>
+<p>The Bril MLIR dialect is expressed using MLIR’s <a href="https://mlir.llvm.org/docs/DefiningDialects/Operations/">Operation Definition Specification</a> (ODS), which is MLIR’s DSL for declaratively defining operations, types, and other dialect-related objects. ODS is the recommended approach for defining MLIR dialects, as it significantly reduces boilerplate C++ code and integrates cleanly with CMake via the TableGen tool, which generates the corresponding C++ sources and headers.</p>
+<p>In this project, ODS is used to define Bril operations, types, and passes. I chose to reuse MLIR’s standard integer type to represent Bril’s <code>int</code> and <code>bool</code> types. For the memory extension, I defined a dedicated opaque pointer type to represent Bril pointers.</p>
+<p>Each Bril operation corresponds closely to an operation in the dialect. Arithmetic operations are straightforward. More interesting cases include operations such as <code>const</code>, which takes an attribute operand (representing a constant value in MLIR); the function operation <code>func</code>, which contains a region of basic blocks; the <code>call</code> operation, which references an MLIR symbol corresponding to a <code>func</code>; and control-flow operations such as <code>br</code>, which specify successor blocks and pass block arguments (since MLIR models SSA via block arguments).</p>
+<p>Finally, I defined two passes: <code>convert-bril-to-std</code>, a dialect conversion pass that lowers Bril into standard MLIR dialects and <code>llvm</code> as a first step toward LLVM IR, and <code>rename-main-function</code>, a somewhat hacky pass used to rename the Bril entry-point function for testing purposes (discussed further below).</p>
+<h2 id="bril-to-mlir-converter">Bril to MLIR Converter</h2>
+<p>Bril’s JSON-based representation makes parsing and conversion relatively straightforward, as I can directly rely on a <a href="https://github.com/nlohmann/json">JSON library</a> to read the input program.</p>
+<p>Since MLIR operates in SSA form, the converter expects the input Bril program to already be in SSA form, specifically using the <code>get</code> / <code>set</code> representation. This maps fairly naturally to MLIR’s block-argument-based SSA representation, aside from several corner cases discussed below.</p>
+<p>The converter first constructs basic blocks for each function and then performs SSA conversion. To translate <code>get</code> / <code>set</code> into block arguments, I collect all <code>get</code> instructions in a block and treat them as that block’s arguments. In MLIR, block arguments are passed through control-flow operations, so I also collect each <code>set</code> instruction in a block and use those values to populate the operands of control-flow terminators, except for blocks terminated by a return.</p>
+<p>Several corner cases must be handled. A block without an explicit terminator requires the insertion of an unconditional branch so that block arguments are properly passed. In addition, some block arguments may not be defined along certain predecessor paths; in such cases, I dynamically generate an <code>undef</code> value and pass it as the corresponding block argument. There is also a verifier constraint requiring the final block in a function to have a terminator; to satisfy this, I insert a dummy return operation with the appropriate type when necessary.</p>
+<p>Once these issues are addressed, the converter walks through each instruction in each basic block and emits the corresponding MLIR operation. This step is relatively direct, as the semantics of Bril operations closely align with those in the Bril dialect. During this process, a symbol table mapping Bril variable names to MLIR SSA values is maintained, since MLIR itself does not preserve source-level variable names.</p>
+<h2 id="mlir-to-bril-converter">MLIR to Bril Converter</h2>
+<p>The reverse conversion is considerably simpler, as MLIR already provides a clear hierarchical structure: module -&gt; functions -&gt; blocks.</p>
+<p>The converter traverses each function in the module, reconstructing Bril basic blocks and instructions in JSON form. Two mappings must be maintained: one from MLIR SSA values to generated Bril variable names, and another from MLIR blocks to generated Bril block names. Converting back to the <code>get</code> / <code>set</code> SSA representation involves collecting block arguments passed via control-flow operations and emitting a corresponding <code>set</code> instruction for each, while also emitting <code>get</code> instructions for the block arguments at the beginning of each block.</p>
+<h2 id="bril-to-std-conversion-pass">Bril to <code>std</code> Conversion Pass</h2>
+<p>The conversion pass is responsible for lowering Bril dialect operations into equivalent operations in standard MLIR dialects: <code>arith</code> for arithmetic and boolean operations, <code>cf</code> for control flow, <code>func</code> for function definitions and calls, and <code>llvm</code> for memory operations and printing.</p>
+<p>Memory operations are lowered directly to the <code>llvm</code> dialect rather than to <code>memref</code>, as Bril’s pointer semantics are difficult to reconcile with <code>memref</code>’s index-based model. As a result, <code>alloc</code> and <code>free</code> are lowered to calls to <code>malloc</code> and <code>free</code>, respectively. A similar approach is used for <code>print</code>.</p>
+<p>Most remaining operations are translated directly into their standard dialect equivalents. A few special cases are worth noting:</p>
+<ul>
+<li><code>id</code> is an unusual operation that feels somewhat unnecessary in an SSA-based IR. Anyhow, it is implemented as an addition with constant zero for integers and booleans, and as a bitcast to the same type for pointers.</li>
+<li><code>undef</code> is implemented as a constant zero or a null pointer.</li>
+<li><code>call</code>, <code>jmp</code>, and <code>br</code> require conversion of their operand types.</li>
+<li><code>func</code> requires conversion of its function signature and block argument types.</li>
+</ul>
+<p>Type conversion is required because the custom Bril pointer type must be lowered into the LLVM dialect’s pointer type. MLIR provides a flexible type conversion framework and value adaptors to support this, but I initially overlooked the need to also convert function signatures, block arguments, and control-flow operands, which led to a rather long debugging session due to cryptic error messages from the dialect conversion pass.</p>
+<h1 id="challenges">Challenges</h1>
+<p>The project was challenging right from the beginning, starting with project setup. I initially attempted to follow the MLIR Toy example directly, but found it rather unwieldy to embed just my dialect within the entire LLVM monorepo. I later discovered the <a href="https://github.com/llvm/llvm-project/tree/main/mlir/examples/standalone">Standalone MLIR dialect example</a>, which supports out-of-tree dialect development linked against a pre-installed LLVM build with MLIR enabled.</p>
+<p>MLIR and LLVM rely heavily on CMake, which I was not really familiar with. The additional complexity introduced by TableGen further increased the learning curve. Eventually, however, I was able to set up a working build with good IDE support via <code>clangd</code> (using <code>CMAKE_EXPORT_COMPILE_COMMANDS</code>), TableGen language support, and faster rebuilds through build caching.</p>
+<p>Another major challenge came during development of the converter programs, where crashes would occur without meaningful stack traces. I eventually realized this was due to exceptions being disabled in the LLVM build, causing the JSON library to abort on exceptions. This made debugging difficult and forced me to rely mostly on print debugging. I later realized there is a build option for enabling exceptions for LLVM (which is disabled by default for performance reasons).</p>
+<p>Several design decisions also required careful consideration, such as choosing an appropriate lowering target for Bril pointers, deciding between phi-nodes and <code>get</code> / <code>set</code> SSA representations, structuring the conversion process, and handling numerous corner cases.</p>
+<p>The most difficult aspect, however, was implementing correct type conversion for the dialect conversion pass. While I knew I needed to lower the custom pointer type, I initially missed the fact that function signatures, block arguments, and control-flow operands must also be converted. The resulting errors were difficult to diagnose due to the limited diagnostic output provided by the conversion framework.</p>
+<p>Later during testing, additional issues surfaced, some caused by bugs in my test stub generator and others by problematic Bril benchmarks. For example, the <code>braille</code> benchmark contains a function with no return value, which violates MLIR verifier requirements. Another benchmark, <code>twosum</code>, contains an unreachable <code>jmp</code> following a <code>ret</code>, which breaks my dialect conversion pass.</p>
+<h1 id="correctness-evaluation">Correctness Evaluation</h1>
+<p>Correctness was evaluated using two approaches: round-trip conversion and execution of generated LLVM code.</p>
+<p>For round-trip testing, a Bril JSON program is converted to MLIR and then back to Bril JSON. The resulting program is compared against the original using <code>turnt</code>. After minor fixes to problematic benchmarks, all core and memory benchmarks (excluding memory benchmarks that use floating-point extensions) pass this round-trip test.</p>
+<p>The second approach involves converting Bril JSON to MLIR, running a pipeline of conversion passes (<code>convert-bril-to-std</code>, <code>rename-main-function</code>, and standard <code>std</code>-to-<code>llvm</code> passes), and then using <code>mlir-translate</code> to produce LLVM IR. This IR is linked with a C++ test stub that calls the Bril entry point with arguments expected by <code>turnt</code>, which motivates the existence of the <code>rename-main-function</code> pass. Test generation is automated via <a href="https://github.com/Mond45/brilir/blob/main/create_llvm.py">scripts</a> that read Bril sources and expected arguments and produce executables accordingly. All executables generated this way have the same outputs as the original Bril benchmarks (same tests as above), as verified by <code>turnt</code>.</p>
+<h1 id="future-work">Future Work</h1>
+<ul>
+<li>
+<p>As Bril is a fairly low-level IR, it may be beneficial to add additional lowering paths targeting dialects such as <code>memref</code>, which would enable interoperability with higher-level dialects like <code>affine</code> or <code>linalg</code>.</p>
+</li>
+<li>
+<p>Support for the remaining Bril extensions, such as floating point, would also be straightforward to add.</p>
+</li>
+<li>
+<p>The current Bril -&gt; MLIR conversion does not attach any location information to operations. Since MLIR emphasizes rich diagnostic support, adding file, line, and column metadata would be a valuable improvement.</p>
+</li>
+</ul>
+
+  <footer>
+    
+    <p>This is the course blog for <a href="../../index.html">CS 6120</a>, the PhD-level compilers course in the computer science department at Cornell.
+You can subscribe to <a href="../index.html">posts on the blog</a> with <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

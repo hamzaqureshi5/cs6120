@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: A Unifying Theory Of Garbage Collection</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="A Unifying Theory Of Garbage Collection">
+<meta property="og:description"
+    content="A Background On Garbage Collection
+In programming language design, there are two approaches when it comes to managing heap allocated memory. The language can choose to deflect the responsibility to the programmer, as in the case of C&#x2F;C++, or it can employ a Garbage Collector (GC), as in the case of many modern languages (Java, Python, Ruby, Go). Broadly speaking, Garbage Collection is a term used to describe the process of identifying and deleting heap-allocated objects that can no longer be used by the program.
+There are two paradigms employed to deal with heap allocated memory for GCs: Reference Counting and Tracing collectors (Also known as mark-sweep). Reference counting collectors keep a reference count for every allocated object, and free the object if the count ever reaches 0. On the other hand, Mark Sweep collectors run periodically and collect unreachable objects by following references from known live roots, and eliminating data which is no longer ‘live’.
+Below is a table (from this week’s paper) comparing the differences between tracing and reference counting collectors.
+TracingReference Counting
+Collection styleBatchIncremental
+Cost per MutationNoneHigh
+ThroughputHighLow
+Pause timesLongShort
+Real-timeNoYes
+Collects CyclesYesNo">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="../index.html">
+    The CS 6120 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>A Unifying Theory Of Garbage Collection</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        Jeffrey Qian,
+      
+        Helen Ge
+      
+      <span>
+    
+    <time datetime="2025-11-06">
+      November  6, 2025
+    </time>
+  </p>
+  <h2 id="a-background-on-garbage-collection">A Background On Garbage Collection</h2>
+<p>In programming language design, there are two approaches when it comes to managing heap allocated memory. The language can choose to deflect the responsibility to the programmer, as in the case of C/C++, or it can employ a Garbage Collector (GC), as in the case of many modern languages (Java, Python, Ruby, Go). Broadly speaking, Garbage Collection is a term used to describe the process of identifying and deleting heap-allocated objects that can no longer be used by the program.</p>
+<p>There are two paradigms employed to deal with heap allocated memory for GCs: Reference Counting and Tracing collectors (Also known as mark-sweep). Reference counting collectors keep a reference count for every allocated object, and free the object if the count ever reaches 0. On the other hand, Mark Sweep collectors run periodically and collect unreachable objects by following references from known live roots, and eliminating data which is no longer ‘live’.</p>
+<p>Below is a table (from this week’s paper) comparing the differences between tracing and reference counting collectors.</p>
+<table><thead><tr><th></th><th>Tracing</th><th>Reference Counting</th></tr></thead><tbody>
+<tr><td>Collection style</td><td>Batch</td><td>Incremental</td></tr>
+<tr><td>Cost per Mutation</td><td>None</td><td>High</td></tr>
+<tr><td>Throughput</td><td>High</td><td>Low</td></tr>
+<tr><td>Pause times</td><td>Long</td><td>Short</td></tr>
+<tr><td>Real-time</td><td>No</td><td>Yes</td></tr>
+<tr><td>Collects Cycles</td><td>Yes</td><td>No</td></tr>
+</tbody></table>
+<h2 id="two-sides-of-the-same-coin">Two Sides Of The Same Coin</h2>
+<p>One might think that reference counting and mark-sweep collectors are entirely different, however the paper “A Unified Theory of Garbage Collection” by Bacon et. al, published at OOPSLA 2004 argues that tracing and reference-counting garbage collectors are two sides working on the same coin. The authors describe tracing as operating on “matter” and reference counting operates on “anti-matter”. If tracing walks the graph accumulating reaching objects, then reference counting effectively walks the complement. For every operation on “live” data, there is a complementary operation that operates on dead data. The paper uses the table below to summarise these similarities.</p>
+<table><thead><tr><th></th><th>Tracing</th><th>Reference Counting</th></tr></thead><tbody>
+<tr><td>Starting Point</td><td>Roots</td><td>Anti-roots</td></tr>
+<tr><td>Graph Traversal</td><td>Fwd. from roots</td><td>Fwd. from anti-roots</td></tr>
+<tr><td>Objects Traversed</td><td>Live</td><td>Dead</td></tr>
+<tr><td>Initial RC</td><td>Low (0)</td><td>High</td></tr>
+<tr><td>RC Reconstruction</td><td>Addition</td><td>Subtraction</td></tr>
+<tr><td>Extra Iteration</td><td>Sweep Phase</td><td>Trial Deletion</td></tr>
+</tbody></table>
+<p>The authors then argue that these approaches are algorithmically similar, suggest that optimised implementations of one type inevitably take elements from the other, and propose some formulae for estimating the space / time cost of a given garbage collector.</p>
+<p>The authors observed that all realistic garbage collectors employ a hybrid approach, interleaving tracing and reference counting operations. The examples below illustrate why there is no practical GC system that is purely tracing or purely reference counting.</p>
+<h3 id="deferred-reference-counting">Deferred Reference Counting</h3>
+<p>A Deferred Reference Counting (DRC) collector is a unified heap collector (unified heap collectors have a single heap in which all allocated memory resides). It only maintains reference counts between heap objects, and objects with a RC of zero are put into a zero count table (ZCT). At collection time, elements in the ZCT pointed to by the roots are removed and the remaining elements are freed.</p>
+<p>This approach reduces the mutation cost, while maintaining the predictable nature of RC based collectors.</p>
+<h3 id="generational-collectors">Generational Collectors</h3>
+<p>General collectors split the heap into a nursery and mature space and are also some form of hybridization of tracing and reference counting. General Collectors take advantage of the fact that objects tend to die young, and so garbage collection passes are run frequently on new objects, and are run less frequently on mature objects, decreasing average pause times. These types of collectors typically also borrow RC concepts such as remembered sets and pointer update logging.</p>
+<h3 id="case-study-on-python-s-hybrid-collector">Case Study on Python’s Hybrid Collector</h3>
+<p>One of the primary disadvantages of reference counting collectors is that they do not find cyclic garbage. Therefore, an additional mechanism is required. Python’s garbage collector is a great example – it employs a reference counting collector, with a tracing pass to detect and free dead objects with cyclical references. This is a real world example which reinforces the idea that tracing and reference counting collectors are two sides of the same coin, and it is a design decision to consider the tradeoffs of each paradigm.</p>
+<h2 id="reflection">Reflection</h2>
+<p>The paper does a good job of proposing a systematic view that organizes an entire landscape of Garbage Collection techniques. The cost formulas, while abstract, also do a good job of highlighting which aspects of GC tend to dominate the runtime of each garbage collection – it also highlights the tradeoffs when designing a hybrid approach.</p>
+<p>Unfortunately, the paper does not provide many firm numbers or actual implementations for the ideas presented. In some areas, the paper also felt like a survey of existing algorithms. Points of criticism and discussion are mentioned below to close off the blog post. Hope you learned something!</p>
+<h3 id="heap-fragmentation">Heap Fragmentation</h3>
+<p>Furthermore, it does not consider heap fragmentation which is a very real problem that memory allocators have to deal with. By assuming that memory allocations are fixed width, the analysis may unfairly penalize copy-ing (compacting) collectors. It’s also unclear whether compacting into this “duality” between tracing and reference counting structure.</p>
+<p>While it is most likely possible to extend the cost equations and algorithmic framework the authors propose to include comparing garbage collection, we differed on whether the model would still necessarily fit. One person suggested that the paper already talks about split heaps, and thus could easily be extended. Another suggested that the equations could be updated with coefficients that more accurately reflected the costs / benefits of fragmentation handling. However, we were unsure about whether these effects necessarily scaled linearly and predictably.</p>
+<h3 id="effects-on-language-design">Effects on Language Design.</h3>
+<p>The group also discussed whether the unified view could lead to new language features or runtime optimizations. Traditionally, GC design influences language semantics, but it might be possible for a JIT or the language to expose invariants to the GC to make the collection passes cheaper.</p>
+<p>For example, a JIT could detect stable pointer patterns and hint to the collector about reachability or cycles! Or, a language could include ‘hinting’ (like the ‘unlikely’ annotation in C) to encourage compilers to adopt more or less aggressive garbage collection.</p>
+<p>One person also proposed representing memory as a graph adjacency matrix, and applying linear algebra to determine which memory was garbage. This was a really cool idea!</p>
+<p>However, we thought that explicit user choice in GC (i.e., where the user selects which algorithm to use for a given code segment) might not be a good idea, especially to maintain the ‘productivity’ that garbage collected languages have.</p>
+<p>We also thought that the notion of ‘hybridisation’ that the authors presented, where one type of garbage collector could take on traits of the other, had somewhat unsatisfying / unclear benefits. The notion of ‘anti-matter’ versus ‘matter’, though aesthetically pleasing, is perhaps of limited use in practice. A garbage collector which makes use of both would most likely perform an untenable amount of bookkeeping.</p>
+<p>Some optimisations we discussed weren’t necessarily directly related to the unified framework, such as choosing random starting nodes and performing semi-complete live data traversal (echoing stochastic methods in graph algorithms). So, while the ‘unified theory’ is a nice idea, it may preclude thinking of other novel GC methods.</p>
+<h3 id="measurements">Measurements</h3>
+<p>Another part of the paper we discussed was whether the proposed measurements / formulae were meaningful, and (since we tended to agree that they were somewhat arbitrary), how we could measure GC and decide whether an approach was ‘best’.</p>
+<p>One approach mentioned was, for a given program, to take an upper bound on memory allocated, and compare it to the amount currently in use during execution.</p>
+<p>However, in our discussion, we mostly focused on the variability and complexity of the garbage collection design space. The traditional set of benchmarking workloads may vary wildly in memory use patterns; and even programs with similar memory use patterns may stretch approaches in different ways.</p>
+<p>We agreed that time and space used were most likely inversely related / orthogonal. One person also mentioned that it was perhaps easier to compare garbage collectors relative to each other, but hard to compare them in ‘absolute’ terms, unlike in other PL-related literature. As such, we generally concluded that measuring GC was a series of compromises, and that, ultimately, the answer sort of depends.</p>
+
+  <footer>
+    
+    <p>Jeffrey Qian is an M.Eng student studying CS at Cornell. His research interests include machine learning compilers, and systems for machine learning. In his free time, he likes to cook, ski, and hike.</p>
+<p>Helen Ge is a senior studying ECE. she’s into computer systems-y stuff and weird hardware. she lacks free time.</p>
+
+    
+    <p>This is the course blog for <a href="../../index.html">CS 6120</a>, the PhD-level compilers course in the computer science department at Cornell.
+You can subscribe to <a href="../index.html">posts on the blog</a> with <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

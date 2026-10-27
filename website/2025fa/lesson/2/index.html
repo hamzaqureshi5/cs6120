@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Representing Programs</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 2:
+  Representing Programs
+  
+</h1>
+<ul class="links">
+  
+  <li>
+    <a href="https://github.com/sampsyo/cs6120/discussions/554" class="icon discussion">discussion thread</a>
+  </li>
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_vnx6laq9" class="icon video">representing programs</a>
+  </li>
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_jc91ke0h" class="icon video">getting started with Bril</a>
+  </li>
+  
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>September 9</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_vnx6laq9" allowfullscreen></iframe>
+  </div>
+
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_jc91ke0h" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<ul>
+<li>How do you represent a program? The classic options:
+<ul>
+<li>Concrete syntax.</li>
+<li>Abstract syntax (AST).</li>
+<li>Instructions.</li>
+</ul>
+</li>
+<li>We like the instruction representation for its regularity. To do anything useful with it, however, we need to extract higher-level representations.
+<ul>
+<li>Control flow graph (CFG).</li>
+<li>Basic blocks.</li>
+<li>Terminators (<code>jmp</code> and <code>br</code>, here).</li>
+<li>Derive the algorithm for forming basic blocks.</li>
+<li>Successors &amp; predecessors.</li>
+<li>Derive the algorithm for forming a CFG of basic blocks.</li>
+</ul>
+</li>
+<li><a href="https://github.com/sampsyo/bril">Bril</a>, the Big Red Intermediate Language, is a language invented just for 6120.
+<ul>
+<li>Philosophy.
+<ul>
+<li>The canonical representation is JSON. There is a text format, but that’s just a detail. (Remember, this class is not about parsing. If you ever find yourself doing something fancy with the text format, stop—that’s not your job.)</li>
+<li>This way, you can use any language you want to work with Bril (and for 6120 work).</li>
+<li>A consequence is that you can (and should!) start “from scratch” with Bril. Do not attempt to use my garbage Python stuff; write your own!</li>
+</ul>
+</li>
+<li>Getting started with working with Bril.
+<ul>
+<li>The <a href="https://capra.cs.cornell.edu/bril/">documentation</a>.</li>
+<li>The <a href="https://github.com/sampsyo/bril">git repository</a>.</li>
+<li>Part of the Bril philosophy is that it is language-neutral. As a consequence, the tools you get in the Bril repository are written in a hodgepodge of different languages.
+<ul>
+<li><strong>The video’s installation instructions are stale:</strong> it refers to using <code>yarn</code> to install stuff. It’s now somewhat easier:
+<ol>
+<li>Install <a href="https://deno.land">Deno</a>. <code>brew install deno</code> on macOS, for example.</li>
+<li>Type <code>deno install -g brili.ts</code>.</li>
+<li>As Deno instructs, add <code>$HOME/.deno/bin</code> to your <code>$PATH</code>.
+That’s it!</li>
+</ol>
+</li>
+<li>Also, there is another (maybe easier) way to install the Python text-format tools, using <a href="https://docs.astral.sh/uv/">uv</a>. Try <code>uv tool install .</code> in the <code>bril-txt</code> directory.</li>
+</ul>
+</li>
+<li>Lots of examples in the <code>tests</code> and <code>benchmarks</code> directories.
+<ul>
+<li>An extremely simple example: <a href="https://github.com/sampsyo/bril/blob/main/test/print/add.json"><code>add.json</code></a> in the canonical representation, or <a href="https://github.com/sampsyo/bril/blob/main/test/print/add.bril">the equivalent text for your human convenience</a>.</li>
+</ul>
+</li>
+<li>Interacting with Bril programs using Unix pipelines. For example, to run programs you write in the text format, use <code>bril2json &lt; stuff.bril | brili</code>.</li>
+<li>How to load up and process a Bril program, using Python as an example, but remember that you can use any language you like.</li>
+<li>Getting started with generating the CFG.
+<ul>
+<li>Notably, <code>call</code> instructions are (usually) not considered terminators.</li>
+<li>Try it yourself!</li>
+<li>Afterward, if you’re curious, check out a completed implementation (with some added fanciness) in <a href="https://github.com/sampsyo/bril/tree/main/examples">the examples directory</a> (see <code>form_blocks.py</code>, <code>cfg.py</code>, and <code>cfg_dot.py</code>).</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="https://github.com/cucapra/turnt">Turnt</a> is a tool you might like for testing compiler tools.
+<ul>
+<li>Turnt does <em>snapshot testing</em>, also known as <em>golden</em> or <em>expect</em> testing. It’s different from other kinds of testing you might have done in the past, like unit testing, in that you don’t have to write a spec: you just run the program and “lock in” its output as the expected output.</li>
+<li>It might feel weird, but I personally think snapshot testing represents a wonderful effort/reward trade-off for compilers. Check out a gentler introduction in <a href="https://www.cs.cornell.edu/~asampson/blog/turnt.html">a blog post about snapshot testing for compilers</a>.</li>
+</ul>
+</li>
+</ul>
+<h2 id="tasks">Tasks</h2>
+<p>Your goal is to get familiar with <a href="https://github.com/sampsyo/bril">Bril</a>.</p>
+<ul>
+<li>Write a new benchmark.
+<ul>
+<li>You can write it by hand, use the <a href="https://capra.cs.cornell.edu/bril/tools/ts2bril.html">TypeScript compiler</a>, or generate it some other way.</li>
+<li>Try running it with <a href="https://capra.cs.cornell.edu/bril/tools/brilirs.html">brili</a>.</li>
+<li>Open a pull request to add your new benchmark.
+<ul>
+<li>Add your code to the <a href="https://github.com/sampsyo/bril/tree/main/benchmarks">the <code>benchmarks</code> directory</a>.</li>
+<li>Use <code>turnt --save yours.bril</code> to create the test outputs for your new benchmark. (See the <a href="https://github.com/cucapra/turnt">Turnt</a> README for details.)</li>
+<li>If your <code>@main</code> function takes arguments, you can specify ones to use in testing with an <code>ARGS:</code> comment, <a href="https://github.com/sampsyo/bril/blob/06ed7bd18324fbb8902f1ebc43fd71deac8bfb03/benchmarks/fizz-buzz.bril#L1-L2">like this</a>.</li>
+<li>Mention it in <a href="https://github.com/sampsyo/bril/blob/main/docs/tools/bench.md">the docs</a>.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Write a program to analyze or transform Bril programs in some other small way that you invent.
+<ul>
+<li>Pick your favorite programming language—there is no “starter code,” so you can start from scratch.</li>
+<li>Load up a JSON file. You can start with <a href="https://github.com/sampsyo/bril/blob/main/test/parse/add.json">this tiny one</a>!</li>
+<li>Read <a href="https://capra.cs.cornell.edu/bril/">the docs</a>.</li>
+<li>Do something unambitious with it: count the number of add instructions, or add a <code>print</code> instruction before every jump, or whatever. Pick something small and contrived!</li>
+</ul>
+</li>
+<li>Use <a href="https://github.com/cucapra/turnt">Turnt</a> to test your new tool. Think carefully about what makes a good test for your tool, no matter how trivial.</li>
+<li>Implement the algorithms to form basic blocks and build a control flow graph.</li>
+<li>Along the way, you may run into problems! Ask questions on <a href="https://cs6120.zulipchat.com">Zulip</a>, and open issues and pull requests to describe or fix problems. For example, some benchmarks you might imagine probably can’t be written easily because Bril is too simple. Mention this on Zulip, and consider pitching in to help add features.</li>
+<li>As with all implementation tasks:
+<ul>
+<li>Summarize your work in the discussion thread associated with this lesson (see the link above). Check out <a href="../../syllabus/index.html#tasks">the relevant section in the syllabus</a> to know more about what this post should consist of.</li>
+<li>Submit the URL for your source code on <a href="https://cmsx.cs.cornell.edu/">CMS</a>.</li>
+</ul>
+</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

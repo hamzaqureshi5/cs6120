@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Data Flow</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 4:
+  Data Flow
+  
+</h1>
+<ul class="links">
+  
+  <li>
+    <a href="https://github.com/sampsyo/cs6120/discussions/556" class="icon discussion">discussion thread</a>
+  </li>
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_72tqupsb" class="icon video">data flow</a>
+  </li>
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_mjy6lamo" class="icon video">implementation task</a>
+  </li>
+  
+  
+  <li>
+    <a href="http:&#x2F;&#x2F;www.cs.cornell.edu&#x2F;courses&#x2F;cs4120&#x2F;2019sp&#x2F;lectures&#x2F;20dataflow&#x2F;lec20-sp16.pdf" class="icon reading">the CS 4120 notes</a>
+    
+    <br>for a longer introduction to data flow
+    
+  </li>
+  
+  <li>
+    <a href="https:&#x2F;&#x2F;cs.au.dk&#x2F;~amoeller&#x2F;spa&#x2F;spa.pdf" class="icon reading">Section 5.3 of SPA</a>
+    
+    <br>has more on fixed point algorithms for solving data flow
+    
+  </li>
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>September 23</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_72tqupsb" allowfullscreen></iframe>
+  </div>
+
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_mjy6lamo" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<h3 id="the-data-flow-framework">The Data Flow Framework</h3>
+<ul>
+<li><em>Reaching definitions</em> are an example of a global property that require you to look at an entire CFG.</li>
+<li>Terminology:
+<ul>
+<li><em>Use:</em> An instruction uses all of its arguments. (So any instruction with arguments is a “use.”)</li>
+<li><em>Definition:</em> An instruction defines the variable it writes to. (You can call every instruction that writes to a variable a “definition.”)</li>
+<li><em>Available:</em> Definitions that reach a given point in the program are available at that point.</li>
+<li><em>Kills:</em> Any definition kills all of the currently available definitions.</li>
+</ul>
+</li>
+<li>The data flow framework. Here’s how you solve a global analysis problem by imbuing a local analysis with a dose of data-flow magic:
+<ol>
+<li>Figure out the thing you want to know at the entry and exit of each block.</li>
+<li>Write an equation for every block relating that thing at the entry to that thing at the exit. (In general, this is a <em>local analysis</em> for the block.)</li>
+<li>Generate equalities according to the edges in the CFG.</li>
+<li>Solve the system of equations! (Using a general solver algorithm that you don’t need to adapt to every problem.)</li>
+</ol>
+</li>
+<li>Instantiating the data flow framework for reaching definitions.
+<ul>
+<li>Initial value: the empty set.</li>
+<li>Transfer function: <code>out(in) = def(b) ∪ (in - kills(b))</code></li>
+<li>Merge function: union.</li>
+</ul>
+</li>
+<li>The worklist algorithm for solving data flow.</li>
+</ul>
+<p>Here’s the pseudocode for solving a forward data flow problem with a worklist algorithm:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>in[entry] = init
+</span><span>out[*] = init
+</span><span>
+</span><span>worklist = all blocks
+</span><span>while worklist is not empty:
+</span><span>    b = pick any block from worklist
+</span><span>    in[b] = merge(out[p] for every predecessor p of b)
+</span><span>    out[b] = transfer(b, in[b])
+</span><span>    if out[b] changed:
+</span><span>        worklist += successors of b
+</span></code></pre>
+<p>For the backward version, flip predecessors &amp; successors, and flip <code>in</code> and <code>out</code>.</p>
+<h3 id="instantiating-data-flow">Instantiating Data Flow</h3>
+<ul>
+<li>Theory interlude: the requirements for a general data flow analysis. How do you know the worklist algorithm terminates and gives you the right answer?
+<ul>
+<li>The domain of values you’re trying compute needs to form a <em>partial order</em> with a unique lower bound. The rough idea is that the worklist algorithm should only “move” values monotonically in the order, so it’s guaranteed to eventually terminate.</li>
+<li>In terms of a partial order ⊑, the merge function is the <em>meet</em> (greatest lower bound) operator ⊓; the initial value is the top value ⊤; and the transfer function must be a monotonic function, so <code>x ⊑ y</code> implies <code>f(x) ⊑ f(y)</code>.</li>
+<li>The usual definition of a “correct” solution to a data-flow problem is the <em>meet-over-all-paths</em> solution: the meet of chained applications of the transfer functions for every path in the CFG from the entry block to any given block.</li>
+<li>For more on the theory, I recommend Chapter 5 of <a href="https://cs.au.dk/~amoeller/spa/spa.pdf"><em>Static Program Analysis</em> by Møller and Schwartzbach</a>.</li>
+</ul>
+</li>
+<li>More examples of things you can do with the data flow framework.
+<ul>
+<li>Reaching definitions.</li>
+<li>Live variables: which variables are both defined and going to be used at some point in the future?</li>
+<li>Constant propagation: which variables have statically knowable constant values?</li>
+<li>Available expressions: which <em>expressions</em> have already been computed computed in the past? (Useful in CSE.)</li>
+<li>Initialized variables: like in Java, which variables have had <em>something</em> written to them?</li>
+<li>Interval analysis: what is the numerical range of values that a given variable might hold?</li>
+</ul>
+</li>
+<li>Demonstrating a simple generic implementation.
+<ul>
+<li>If you want, you can use the <code>{args}</code> feature of <a href="https://github.com/cucapra/turnt">Turnt</a> and its <code>-a</code> command-line flag to quickly switch between different analyses.</li>
+</ul>
+</li>
+</ul>
+<h2 id="tasks">Tasks</h2>
+<ul>
+<li>Implement at least one data flow analysis. You choose which.</li>
+<li>For bonus “points,” implement a generic solver that supports multiple analyses.</li>
+<li>As always: Try to convince yourself that your analyses are working how you want them to.</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

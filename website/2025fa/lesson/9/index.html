@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Interprocedural Analysis</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 9:
+  Interprocedural Analysis
+  
+</h1>
+<ul class="links">
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_9csov2la" class="icon video">video</a>
+  </li>
+  
+  
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_9csov2la" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<p>Recap: we have done <em>local</em> (within a basic block) and <em>global</em> (within a function) analyses &amp; optimizations. But what about optimizations that have to cross function boundaries? Those are <em>interprocedural</em>.</p>
+<p>Like, what if we want to do LICM to this code?</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>main() {
+</span><span>    let x = ...;
+</span><span>    for (...) {
+</span><span>        g(f(x));
+</span><span>    }
+</span><span>}
+</span><span>
+</span><span>f(x) {
+</span><span>    return x * 42;
+</span><span>}
+</span></code></pre>
+<p>The multiplication in <code>f</code> is clearly loop invariant, but no global optimization can tell that.
+And worse still, we can’t very well move the multiplication “out of” the body of <code>f</code> because there might be other places that call <code>f</code> that expect it to work as written.</p>
+<h3 id="the-call-graph">The Call Graph</h3>
+<ul>
+<li>In interprocedural analysis, you often want to know which functions call which other functions. Like a CFG but for functions, in a way.</li>
+<li>In a call graph, every function is a vertex and every edge represents a call from one function to another.</li>
+</ul>
+<h3 id="open-vs-closed-world">Open vs. Closed World</h3>
+<ul>
+<li>Practically speaking, most interprocedural analyses need to assume they work in an <em>open world</em>, i.e., they don’t get to see <em>all</em> the code that will eventually turn into the final program. Some code is “hidden,” and the analysis must assume it can do anything.</li>
+<li>In more exotic scenarios, you get to make a <em>closed-world assumption</em>, i.e., that your analysis gets to see everything. That’s often called a <em>whole-program</em> analysis.</li>
+<li>Assuming a closed world, for example, lets you delete a function if you see that it is never called. In an open world, you can’t be sure the function is actually dead. (You don’t get to see the whole call graph.)</li>
+<li>While whole-program analysis is strictly more powerful, there are many reasons why realistic analyses need to assume an open world:
+<ul>
+<li>Separate compilation. People want the ability to compile <code>*.c</code> files to <code>*.o</code> files independently—for many good reasons.</li>
+<li>Speed: it can be impractical to analyze whole programs if they’re really big.</li>
+<li>In many more dynamic languages, including Java even, it’s possible for the program to load more code at run time. So assumptions you make about the “whole program” may be invalidated when the application loads a plugin.</li>
+</ul>
+</li>
+<li>Practically speaking, whole-program analysis generally happens in these scenarios:
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Interprocedural_optimization#WPO_and_LTO">Link-time optimization (LTO)</a> is an <em>extra</em> optimization phase that happens <em>after</em> you independently compile all those <code>*.c</code> files to <code>*.o</code> files, when you want to link them together into an executable, so you do get to see all the code.</li>
+<li><a href="https://en.wikipedia.org/wiki/Just-in-time_compilation">Just-in-time (JIT)</a> compilers get to see a snapshot of the code for the entire program right before it runs. They can temporarily apply closed-world optimizations and then invalidate them later on if the program loads more code later on.</li>
+</ul>
+</li>
+</ul>
+<h3 id="inlining">Inlining</h3>
+<ul>
+<li>Inlining is a pretty simple idea: take a function call, and replace it with a copy of the called function’s body. You eliminate the call and just do the computation right there.</li>
+<li>Inlining is the “ur-optimization” because it gives interprocedural superpowers to local &amp; global optimizations. If you can do a good job with inlining, you unlock many more downstream global optimizations.</li>
+<li>Of course, you can’t inline <em>everything</em>.
+<ul>
+<li>Inlining the entire call graph into <code>main</code> would make the code exponentially large. And it’s impossible when there’s recursion, of course.</li>
+<li>In general, inlining has a cost (code size increases, worse instruction locality) and a benefit (remove the cost of the call, enable more optimization). Inliners need to decide when the benefit outweighs the cost.</li>
+<li>Inevitably, you need some kind of heuristic. For example, an easy one is to only inline functions that are small enough, i.e., below a fixed instruction-count threshold.</li>
+</ul>
+</li>
+</ul>
+<h3 id="devirtualization">Devirtualization</h3>
+<ul>
+<li>Lots of languages (but not Bril—yet!) have virtual function calls.
+<ul>
+<li>Every method call in Java is a virtual call, for example: the actual code you invoke for <code>o.m()</code> depends on the run-time type of <code>o</code> and whether the subclass overrides the <code>m</code> method.</li>
+<li>In assembly, these show up as <a href="https://en.wikipedia.org/wiki/Indirect_branch">indirect jumps</a>.</li>
+</ul>
+</li>
+<li>It would be <em>really nice</em> to inline virtual function calls, but doing it in a straightforward way is impossible because we don’t know which function is being called!</li>
+<li><em>Devirtualization</em> is an optimization that turns virtual (indirect) calls into direct calls, when possible. Then inlining and other interprocedural optimizations can work on those direct calls.</li>
+<li>To use Java as an example again, an easy case is when you initialize an object with <code>Foo o = new Baz()</code> and then <em>immediately</em>, like on the next line of code, call <code>o.m()</code>. You know that <code>o</code> will be a <code>Baz</code> object at that call site, you so you know it <em>must</em> call <code>Baz</code>’s version of the <code>m</code> method.</li>
+<li>In general, you want to do a data flow analysis to propagate information about the dynamic types of objects from assignments to method calls, and then use that information to decide whether there is exactly one possibility for the function you need to invoke directly.</li>
+<li>I recommend <a href="https://blog.llvm.org/2017/03/devirtualization-in-llvm-and-clang.html">this blog post about devirtualization in LLVM</a>.</li>
+</ul>
+<h3 id="context-sensitivity">Context Sensitivity</h3>
+<p>Sometimes the answer to a question about a function depends on another question: <em>which call are we talking about?</em></p>
+<p>For example, imagine we are trying to optimize this somewhat funky program that uses lots of evil mutable global state:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>bool b;  // global variables
+</span><span>int i = 0;
+</span><span>
+</span><span>main() {
+</span><span>    g1();
+</span><span>    print(i):
+</span><span>
+</span><span>    g2()
+</span><span>    print(i);
+</span><span>}
+</span><span>
+</span><span>g1() {
+</span><span>    b = true;
+</span><span>    f();
+</span><span>}
+</span><span>
+</span><span>g2() {
+</span><span>    b = false;
+</span><span>    f();
+</span><span>}
+</span><span>
+</span><span>f() {
+</span><span>    if (b) {
+</span><span>        i++;
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>The call to <code>f</code> in <code>g1</code> matters, but the one in <code>g2</code> is “dead code” that can’t affect anything the program will do.
+Inlining could reveal this fact, of course, but we know it’s not always practical to inline everything.
+And any self-respecting (i.e., sound) interprocedural analysis that asks <em>does <code>f</code> modify <code>i</code>?</em> must say <em>yes, it might!</em></p>
+<p>So is there a way to tell that the second <code>f</code> can be eliminated?
+For that, we need a <em>context-sensitive</em> analysis.
+The idea is to use some kind of contextual information to distinguish different invocations of the same code.
+For example, one common kind of context is the call stack:
+a context-sensitive analysis could draw different conclusions about calls to <code>f</code> from <code>g1</code> versus calls to <code>f</code> from <code>g2</code>.</p>
+<p>Context-sensitive analyses can get expensive quickly.
+For example, in our imaginary <em>does the function modify <code>i</code>?</em> analysis, a context-insensitive analysis would need to answer <em>n</em> queries where <em>n</em> is the number of functions in the program.
+But a context-sensitive analysis that uses the calling function as the context needs <em>n²</em> queries.
+And you can even use deeper call stacks as context to get even more precise answers—if you use the <em>i</em> most recent calls as context, you now need to answer <em>nⁱ</em> queries.
+So in general, context sensitivity represents a pretty steep trade-off between analysis precision and cost.</p>
+<h2 id="tasks">Tasks</h2>
+<p>There are no tasks to turn in for this lesson.
+For “fun,” you can consider implementing inlining for Bril function calls!</p>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

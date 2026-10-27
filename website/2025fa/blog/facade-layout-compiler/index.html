@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Facade Layout Compiler</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+<meta name="twitter:card" content="summary">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Facade Layout Compiler">
+<meta property="og:description"
+    content="Source Code
+What was the goal?
+The goal of this project was to design and implement a Facade Layout Compiler—a domain-specific compiler that transforms textual descriptions of building facades into verified, renderable outputs. The input language describes a facade as a symbolic grid of architectural elements (windows, doors, chimneys, spacing, and empty cells), and the compiler produces:
+Verified layouts: The compiler performs static semantic analysis to enforce architectural constraints such as door placement rules, chimney connectivity, and optional window spacing requirements.
+Renderable outputs: For valid programs, the compiler generates both SVG visualizations and structured JSON representations suitable for downstream processing or generative design workflows.
+This project directly mirrors a traditional compiler pipeline—lexical analysis, parsing, semantic analysis, and code generation—but operates in a visually interpretable domain. The choice of architectural facades as the target domain was intentional: it provides immediate visual feedback for correctness, making it easier to reason about both the compiler’s behavior and the quality of its output.
+Alignment with Proposal
+My original proposal outlined three key deliverables:">
+
+
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../../lesson/index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+
+
+<h1>
+    <a href="../index.html">
+    The CS 6120 Course Blog
+    </a>
+</h1>
+<article>
+  <h1>Facade Layout Compiler</h1>
+  <p class="details">
+    
+      <span class="author"> by
+      
+        I-Ting Tsai
+      
+      <span>
+    
+    <time datetime="2025-12-16">
+      December 16, 2025
+    </time>
+  </p>
+  <p><a href="https://github.com/itingtsai/Facade_Layout_Compiler">Source Code</a></p>
+<h2 id="what-was-the-goal">What was the goal?</h2>
+<p>The goal of this project was to design and implement a Facade Layout Compiler—a domain-specific compiler that transforms textual descriptions of building facades into verified, renderable outputs. The input language describes a facade as a symbolic grid of architectural elements (windows, doors, chimneys, spacing, and empty cells), and the compiler produces:</p>
+<p><strong>Verified layouts:</strong> The compiler performs static semantic analysis to enforce architectural constraints such as door placement rules, chimney connectivity, and optional window spacing requirements.</p>
+<p><strong>Renderable outputs:</strong> For valid programs, the compiler generates both SVG visualizations and structured JSON representations suitable for downstream processing or generative design workflows.</p>
+<p>This project directly mirrors a traditional compiler pipeline—lexical analysis, parsing, semantic analysis, and code generation—but operates in a visually interpretable domain. The choice of architectural facades as the target domain was intentional: it provides immediate visual feedback for correctness, making it easier to reason about both the compiler’s behavior and the quality of its output.</p>
+<h2 id="alignment-with-proposal">Alignment with Proposal</h2>
+<p>My <a href="https://github.com/sampsyo/cs6120/issues/618#issue-3592227093">original proposal</a> outlined three key deliverables:</p>
+<ol>
+<li><strong>Custom DSL for facade specification:</strong> Implemented with support for row declarations, repeat expressions, compact syntax, comments, and rule declarations</li>
+<li><strong>Static rule enforcement:</strong> Distinct semantic checks with error/warning classification</li>
+<li><strong>Empirical validation through testing:</strong> pass a comprehensive test suite</li>
+</ol>
+<p>The scope evolved slightly during implementation. More details are described in the sections below.</p>
+<hr />
+<h2 id="what-did-you-do">What did you do?</h2>
+<h3 id="dsl-design">DSL Design</h3>
+<p>The facade DSL is designed as a minimal, domain-specific language for describing building facades as discrete 2D grids. Each facade is expressed as a set of numbered row declarations, where each row contains a sequence of symbolic elements:</p>
+<ul>
+<li><code>E</code> = empty space</li>
+<li><code>W</code> = window</li>
+<li><code>S</code> = spacing</li>
+<li><code>D</code> = door</li>
+<li><code>C</code> = chimney</li>
+</ul>
+<p><strong>Example program:</strong></p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>row 1: E E E E E E E E
+</span><span>row 2: E E E E E E E E
+</span><span>row 3: E W S S S S W E
+</span><span>row 4: E W S S S S W E
+</span><span>row 5: E E E D D E E E
+</span></code></pre>
+<p>This grid-based representation provides a clear correspondence between source-level specification and spatial layout. The choice of single-character symbols was deliberate: it enables the compact syntax feature (described below) while remaining visually scannable.</p>
+<p>The row numbers aren’t strictly needed since the rows could just be inferred by order, but I was thinking that this would keep the language flexible for future extensions where it might be useful to refer to specific rows (e.g., changing row heights or other row-level attributes).</p>
+<h3 id="expressiveness-and-usability-features">Expressiveness and Usability Features</h3>
+<p>To balance expressiveness with simplicity, the DSL supports several usability-oriented features:</p>
+<ol>
+<li>
+<p><strong>Compact syntax:</strong> Symbols may be written without spaces (e.g., <code>EWCWE</code>), allowing concise row specifications. The lexer recognizes sequences of valid symbols and expands them into individual cells during tokenization.</p>
+</li>
+<li>
+<p><strong>Repeat expressions:</strong> Elements can be repeated using <code>SYMBOL*COUNT</code> syntax (e.g., <code>W*5</code> expands to five window cells). This significantly reduces verbosity for large facades and was particularly useful for stress testing.</p>
+</li>
+<li>
+<p><strong>Zero-count repeats:</strong> The expression <code>E*0</code> produces zero cells, effectively allowing conditional exclusion. This edge case required careful handling—the parser simply doesn’t add any cells to the AST rather than treating it as an error.</p>
+</li>
+<li>
+<p><strong>Flexible whitespace and comments:</strong> Arbitrary whitespace (spaces, tabs, newlines) is permitted between tokens. Line comments starting with <code>#</code> are ignored by the lexer. This allows users to format facade programs for clarity.</p>
+</li>
+<li>
+<p><strong>Case insensitivity:</strong> Both <code>E</code> and <code>e</code> are valid (normalized to uppercase internally).</p>
+</li>
+<li>
+<p><strong>Rule declarations:</strong> Optional rule declarations (e.g., <code>rule min_window_spacing: 2</code>) parameterize semantic checks. Rules are stored in the IR and consulted during analysis.</p>
+</li>
+<li>
+<p><strong>Auto-fill behavior:</strong> Rows may have different lengths; the compiler automatically pads shorter rows with empty cells to create a rectangular grid. Auto-filled cells are tracked in metadata so users can distinguish compiler-inferred content from explicit specification.</p>
+</li>
+</ol>
+<h3 id="design-rationale">Design Rationale</h3>
+<p>The DSL intentionally avoids geometric coordinates, numeric dimensions, or continuous values. By symbolic structure, the facade is described with a small set of symbols laid out on a grid, indicating relationships such as two windows sitting next to each other, without specifying exact dimensions or coordinates.</p>
+<hr />
+<h2 id="front-end-lexer-and-parser">Front-End: Lexer and Parser</h2>
+<h3 id="lexer-implementation">Lexer Implementation</h3>
+<p>I implemented a hand-written lexer that performs character-level scanning. The lexer maintains source location tracking (line and column) for error reporting.</p>
+<ul>
+<li>
+<p><strong>Invalid character detection:</strong> The lexer explicitly rejects characters not in the DSL’s alphabet (punctuation, Unicode, emoji). This catches input errors immediately rather than propagating malformed tokens to the parser.</p>
+</li>
+<li>
+<p><strong>Negative number handling:</strong> Rather than tokenizing <code>-</code> as a separate operator, the lexer detects the pattern <code>-[digit]</code> and reports “Negative numbers not allowed” directly. This provides clearer error messages than a generic parse error.</p>
+</li>
+<li>
+<p><strong>Symbol sequence recognition:</strong> When the lexer encounters a multi-character word like <code>EWCWE</code>, it checks if all characters are valid symbols. If so, it emits a single <code>IDENTIFIER</code> token that the parser later expands.</p>
+</li>
+<li>
+<p><strong>Error handling:</strong> Lexical errors are reported but do not prevent continued scanning. This allows the compiler to report multiple errors in a single pass.</p>
+</li>
+</ul>
+<h3 id="parser-implementation">Parser Implementation</h3>
+<p>The parser is a hand-written top-down parser that consumes the token stream and constructs an AST consisting of:</p>
+<ul>
+<li><strong>program:</strong> The root node containing rules and rows</li>
+<li><strong>rule_decl:</strong> A rule declaration with name and value(s)</li>
+<li><strong>row_decl:</strong> A row with its number and list of cells</li>
+<li><strong>cell:</strong> A single symbol at a source location</li>
+<li><strong>repeat_expr:</strong> A symbol with a repeat count</li>
+</ul>
+<p><strong>Grammar (EBNF):</strong></p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>program     ::= rule_decl* row_decl+
+</span><span>rule_decl   ::= &#39;rule&#39; IDENTIFIER &#39;:&#39; rule_value+
+</span><span>rule_value  ::= INTEGER | IDENTIFIER
+</span><span>row_decl    ::= &#39;row&#39; INTEGER &#39;:&#39; cell+
+</span><span>cell        ::= SYMBOL | repeat_expr
+</span><span>repeat_expr ::= SYMBOL &#39;*&#39; INTEGER
+</span><span>SYMBOL      ::= &#39;E&#39; | &#39;W&#39; | &#39;S&#39; | &#39;D&#39; | &#39;C&#39;
+</span></code></pre>
+<p><strong>Note on Grammar Classification:</strong> This grammar is regular, and the structure is purely sequential without nesting. The language could equivalently be expressed as a regular expression:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>(rule IDENTIFIER : rule_value+)* (row INTEGER : (SYMBOL | SYMBOL &#39;*&#39; INTEGER)+)+
+</span></code></pre>
+<p><strong>Note on Parser Classification:</strong> The parser follows a top-down parsing strategy with one function per major grammar production (<code>parse()</code>, <code>parse_rule()</code>, <code>parse_row()</code>, <code>parse_cells()</code>). It is not strictly a recursive-descent parser because no function calls itself—the grammar’s repetition operators (<code>*</code> and <code>+</code>) are implemented with iterative <code>while</code> loops rather than recursive calls. This iterative approach is natural for a regular grammar where recursion is unnecessary. The parser uses single-token lookahead via <code>check()</code> to predict which production to apply, making it a predictive parser.</p>
+<ul>
+<li>
+<p><strong>Error recovery:</strong> When a syntax error is detected (e.g., missing colon), the parser calls <code>sync_to_row()</code> to skip tokens until the next <code>row</code> keyword. This prevents cascading errors and allows multiple independent errors to be reported.</p>
+</li>
+<li>
+<p><strong>Repeat expression handling:</strong> The <code>*0</code> case is handled by simply not adding any cell to the AST—the absence of cells is the correct representation of “repeat zero times.”</p>
+</li>
+<li>
+<p><strong>Duplicate row handling:</strong> When the same row number appears twice, the parser accepts both, only the latest duplicated row would show, and the semantic analyzer emits a warning. This is more user-friendly than treating duplicates as errors.</p>
+</li>
+<li>
+<p><strong>Strict validation:</strong> Row numbers must be positive integers. Syntax errors like <code>row -1:</code>, <code>row 1.5:</code>, or <code>row :</code> are caught and reported with helpful hints.</p>
+</li>
+</ul>
+<hr />
+<h2 id="middle-end-semantic-analysis-and-normalization">Middle-End: Semantic Analysis and Normalization</h2>
+<p>The semantic analyzer transforms the parsed AST into a normalized grid representation and enforces architectural constraints.</p>
+<h3 id="grid-construction-and-normalization">Grid Construction and Normalization</h3>
+<p>The analyzer builds a 2D grid from row declarations, filling any gaps in row numbering with empty rows and padding shorter rows with <code>E</code> cells to ensure a rectangular grid. Auto-filled cells are tracked in metadata to distinguish compiler-inferred content from explicit specification.</p>
+<h3 id="architectural-rule-checks">Architectural Rule Checks</h3>
+<ul>
+<li><strong>Door Rule (error):</strong> Door cells in each column must form a contiguous vertical segment extending to the ground floor.</li>
+<li><strong>Chimney Rule (error):</strong> Each connected component of chimney cells (using 4-connectivity flood-fill) must reach the top row.</li>
+<li><strong>Window Spacing Rule (warning):</strong> If <code>min_window_spacing</code> is declared, adjacent windows in each row must meet the minimum horizontal distance.</li>
+<li><strong>Symmetry Detection (warning):</strong> Rows that differ from their horizontal mirror are flagged as asymmetric.</li>
+</ul>
+<p>Structural violations (doors, chimneys) produce errors and halt compilation, while stylistic concerns (spacing, symmetry) produce warnings only.</p>
+<hr />
+<h2 id="back-end-code-generation">Back-End: Code Generation</h2>
+<p>For valid programs, the compiler generates two output formats:</p>
+<h3 id="json-output">JSON Output</h3>
+<p>The JSON output includes:</p>
+<ul>
+<li>Grid metadata (dimensions, rules, auto-filled cells)</li>
+<li>The normalized grid as a 2D array of symbols</li>
+<li>Validation results (is_valid, errors, warnings)</li>
+</ul>
+<p>This format is designed for programmatic consumption. The structured data can be used by downstream tools for further processing, constraint solving, or generative design.</p>
+<h3 id="svg-output">SVG Output</h3>
+<p>The SVG generator produces a visual representation where each cell is rendered as a colored rectangle with a label. Cells are grouped by type in the SVG DOM, making it easy to style or manipulate specific element types.</p>
+<h3 id="png-rasterization">PNG Rasterization</h3>
+<p>For environments that don’t support SVG, the compiler can produce PNG output via CairoSVG.</p>
+<p><strong>Example Facades:</strong></p>
+<p>Version 1:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>row 1: E E E E E E E E C E E 
+</span><span>row 2: S S S S S S S S C S S 
+</span><span>row 3: S S W W S S S W W S S 
+</span><span>row 4: S S W W S S S W W S S 
+</span><span>row 5: S S S S S S S S S S S 
+</span><span>row 6: E 
+</span><span>row 6: S S D D S S W W W W S
+</span><span>row 7: S S D D S S W W W W S 
+</span></code></pre>
+<p><img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_1/facade_1.svg" alt="Facade 1" /></p>
+<p>Version 2:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>row 1: E W S E*2 W W E S W E
+</span><span>row 2: W E W S E E S W E*3
+</span><span>row 3: E S E W*2 S E E W S E
+</span><span>row 4: S W S S E W E S E W E
+</span><span>row 5: E E W E S*2 W E E S W
+</span><span>row 6: W S E E W E S W S E E
+</span><span>row 7: D*2 E D E E D E D*2 E
+</span></code></pre>
+<p><img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_2/facade_2.svg" alt="Facade 2" /></p>
+<p>Version 3:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>row 1: E C E S E S E C E
+</span><span>row 2: E C E W E W E C 
+</span><span>row 3: E C E W E W E C 
+</span><span>row 4: E C E W W W E C E
+</span><span>row 5: E C E W E W E C E
+</span><span>row 6: E C E W E W E C 
+</span><span>row 7: E C E S S S E C E
+</span><span>row 8: E E E S S S 
+</span><span>row 9: E D D E E E D D E
+</span></code></pre>
+<p><img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_3/facade_3.svg" alt="Facade 3" /></p>
+<p>Version 4:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>row 1: E E C E*2 
+</span><span>row 2: W W C C W W W W W W W
+</span><span>row 3: W S S C*2 S S S W S W
+</span><span>row 4: W S S S C C S W*2 S W
+</span><span>row 5: E S*4 C C S S S 
+</span><span>row 6: E D D S*3 C S D D 
+</span></code></pre>
+<p><img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_4/facade_4.svg" alt="Facde 4" /></p>
+<p>Version 5:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>row 1: E*1 C*1 E*4 C*1 E*4 c*1 e*1
+</span><span>row 2: E*1 C*1 S*1 W*3 C*1 W*3 S*1 c*1 E*1
+</span><span>row 3: E*1 C*1 S*1 W*1 S*1 W*1 C*1 W*1 S*1 W*1 S*1 C*1 E*1
+</span><span>row 4: E*1 C*1 S*1 W*1 S*1 W*1 C*1 W*1 S*1 W*1 S*1 C*1 e*1
+</span><span>row 5: E*1 C*1 S*1 W*3 C*1 W*3 S*1 C*1 E*1
+</span><span>row 6: e*0 E*1 S*11 E*1
+</span><span>row 7: E*0 E*1 W*2 S*3 W*1 S*3 W*2 E*1
+</span><span>row 8: E*0 D*2 S*1 E*1 S*1 D*3 S*1 e*1 s*1 d*2
+</span></code></pre>
+<p><img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_5/facade_5.svg" alt="Facade 5" /></p>
+<hr />
+<h2 id="what-were-the-hardest-parts-to-get-right">What were the hardest parts to get right?</h2>
+<h3 id="1-error-classification">1. Error Classification</h3>
+<p>I classified errors by compiler phase: lexical errors for invalid characters (e.g., <code>@</code>, emoji), syntax errors for malformed constructs (e.g., missing colons), and semantic errors for valid syntax with invalid meaning (e.g., floating doors, unknown symbols like <code>X</code>).</p>
+<h3 id="2-chimney-connectivity-analysis">2. Chimney Connectivity Analysis</h3>
+<p>Initially, I tried a simple positional check (e.g., chimney cells must be on the top row). This failed for common patterns where chimneys are connected and continuous to reach the ground:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>row 1: C E E
+</span><span>row 2: C C S
+</span><span>row 3: S C C
+</span><span>row 4: S S C
+</span></code></pre>
+<p>This chimney is valid. It connects to the top through a diagonal path. The flood-fill approach correctly handles this by treating chimneys as connected components rather than isolated cells.</p>
+<p>A subtle bug emerged with multiple chimney components: the algorithm must check each component independently, not just verify that some chimney reaches the roof.</p>
+<h3 id="3-normalization-without-hiding-bugs">3. Normalization Without Hiding Bugs</h3>
+<p>Auto-filling rows and padding widths improved usability but introduced a risk: it could mask user errors. If a user forgets a cell, the compiler silently adds an empty cell, which potentially hiding bugs.</p>
+<p>I addressed this by:</p>
+<ul>
+<li>Explicitly tracking auto-filled cells in metadata</li>
+<li>Emitting INFO messages about auto-fill actions</li>
+<li>Including auto-fill information in JSON output</li>
+</ul>
+<p>This makes compiler intervention visible without treating it as an error.</p>
+<h3 id="4-error-recovery-and-multiple-error-reporting">4. Error Recovery and Multiple Error Reporting</h3>
+<p>I implemented basic error recovery so the compiler can report multiple errors in a single pass: the lexer reports invalid characters but continues scanning, and the parser skips to the next row after encountering a syntax error.</p>
+<h3 id="6-comprehensive-test-coverage">6. Comprehensive Test Coverage</h3>
+<p>The most time-consuming aspect was ensuring comprehensive test coverage. My initial tests covered obvious paths but missed edge cases like:</p>
+<ul>
+<li><code>E*0</code> in various positions</li>
+<li>Mixed case symbols</li>
+<li>Comments in unusual positions</li>
+<li>Unicode in comments (valid) vs. Unicode in code (invalid)</li>
+<li>Multiple errors in the same program</li>
+</ul>
+<p>I used an LLM as a test ideation tool: after implementing a feature, I asked it to propose adversarial inputs and edge cases. I then checked and determined the expected behavior and added these cases to my test suite.</p>
+<hr />
+<h2 id="were-you-successful">Were you successful?</h2>
+<h3 id="quantitative-evaluation">Quantitative Evaluation</h3>
+<p>The testing results printout is available in <a href="https://github.com/itingtsai/Facade_Layout_Compiler/blob/main/test/test.txt">test.txt</a></p>
+<h3 id="test-suite-composition">Test Suite Composition</h3>
+<p>The test suite comprises 146 facade programs organized into 22 categories:</p>
+<table><thead><tr><th>Category</th><th>Tests</th><th>Description</th></tr></thead><tbody>
+<tr><td>Basic</td><td>5</td><td>Simple valid inputs</td></tr>
+<tr><td>Syntax</td><td>11</td><td>Syntax variations (compact, repeat, case)</td></tr>
+<tr><td>Comments</td><td>4</td><td>Comment handling</td></tr>
+<tr><td>AutoFill</td><td>5</td><td>Auto-fill behavior</td></tr>
+<tr><td>RowNum</td><td>5</td><td>Row number handling</td></tr>
+<tr><td>Rules</td><td>4</td><td>Rule declarations</td></tr>
+<tr><td>Door</td><td>8</td><td>Door structural validation</td></tr>
+<tr><td>Chimney</td><td>8</td><td>Chimney connectivity validation</td></tr>
+<tr><td>WinSpace</td><td>4</td><td>Window spacing rule</td></tr>
+<tr><td>BadChar</td><td>18</td><td>Invalid character detection</td></tr>
+<tr><td>BadSymbol</td><td>6</td><td>Invalid symbol detection</td></tr>
+<tr><td>SyntaxErr</td><td>18</td><td>Syntax error handling</td></tr>
+<tr><td>Edge</td><td>10</td><td>Edge cases</td></tr>
+<tr><td>Complex</td><td>4</td><td>Complex valid facades</td></tr>
+<tr><td>Boundary</td><td>4</td><td>Boundary conditions</td></tr>
+<tr><td>WS</td><td>5</td><td>Whitespace edge cases</td></tr>
+<tr><td>BadSymbol2</td><td>6</td><td>Additional invalid symbol tests</td></tr>
+<tr><td>Stress</td><td>5</td><td>Stress tests (large grids, many rows)</td></tr>
+<tr><td>Recovery</td><td>3</td><td>Error recovery</td></tr>
+<tr><td>Combo</td><td>4</td><td>Feature combinations</td></tr>
+<tr><td>ZeroRepeat</td><td>9</td><td>Zero-count repeat expressions</td></tr>
+</tbody></table>
+<p>All 146 tests pass.</p>
+<h3 id="stress-test-results">Stress Test Results</h3>
+<p>The compiler handles extreme inputs without issues:</p>
+<ul>
+<li>100-column rows</li>
+<li>100-row facades</li>
+<li><code>E*9999</code> (large repeat)</li>
+<li><code>E*500</code> repeated 10 times</li>
+</ul>
+<h3 id="additional-experiment">Additional Experiment</h3>
+<p>I conducted an experiment using an image generation model (Nano Banana) to produce photorealistic facade images from compiled layouts. The workflow:</p>
+<ol>
+<li>Compile facade DSL → JSON + SVG (+ PNG)</li>
+<li>Construct prompt from grid structure and style description</li>
+<li>Generate image using multimodal model</li>
+</ol>
+<p><strong>Text prompt format:</strong> <em>Generate a [-style] facade of a [low-rise/mid-rise/high-rise] building based on this image, where W = window, D = door, S = spacing, E = empty, and C = chimney.</em></p>
+<p>The results were correct most of the time. The model understood the general layout but sometimes struggled with precise spatial positioning. This suggests the compiled output could serve as input for generative design, though current models may need additional guidance.</p>
+<p><strong>Facade Example 1:</strong></p>
+<p>PNG output:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_1/facade_1.png" alt="PNG output" /></p>
+<p>Modernist-style:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_1/Modernist-style.png" alt="Modernist-style" /></p>
+<p>Biophilic-style:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_1/Biophilic-style.png" alt="Biophilic-style" /></p>
+<p>Postmodern-style:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_1/Postmodern-style.png" alt="Postmodern-style" /></p>
+<p><strong>Facade Example 2:</strong></p>
+<p>PNG output:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_4/facade_4.png" alt="PNG output" /></p>
+<p>Bauhaus-style:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_4/Bauhaus-style.png" alt="Bauhaus-style" /></p>
+<p>Neo-Futurist-style:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/refs/heads/main/example/facade_4/Neo-Futurist-style.png" alt="Neo-Futurist-style" /></p>
+<p>Post-and-Beam Modern-style:
+<img src="https://raw.githubusercontent.com/itingtsai/Facade_Layout_Compiler/main/example/facade_4/Post-and-Beam%20Modern-style.png" alt="Post-and-Beam Modern-style" /></p>
+<h3 id="qualitative-validation">Qualitative Validation</h3>
+<p>I output 5 facade examples (json, svg, png) together with image gen visualizations which are available in the <a href="https://github.com/itingtsai/Facade_Layout_Compiler/tree/main/example">example folder</a>.</p>
+<hr />
+<h2 id="conclusion">Conclusion</h2>
+<p>This project shows that the classical compiler pipeline—lexing, parsing, semantic analysis, and code generation—maps cleanly onto domain-specific languages, even in nontraditional domains such as architectural layout. Treating facades as programs rather than data made it possible to enforce structural invariants that would be difficult to express or validate in other formats.</p>
+<p>Building the compiler highlighted several practical lessons: DSL design requires careful trade-offs between expressiveness and complexity; high-quality error messages are essential for usability; and comprehensive testing is challenging in the absence of established benchmarks, requiring systematic, feature-driven test design. The phased architecture proved especially valuable for debugging and extension, as clear phase boundaries made errors easy to localize and new features straightforward to add.</p>
+<p>Overall, this experience reinforced the power of compiler techniques as a general problem-solving framework. The resulting facade compiler provides a solid foundation for future extensions, such as richer architectural constraints, integration with generative design systems, or interactive feedback during editing.</p>
+<p>It was a great semester, even though I was personally juggling a lot. Coming from a very different background, I learned a lot from this course and developed a better understanding of what a compiler is and how it works. Thanks to everyone for the great online and in-class discussions, and especially to Adrian and Kei for the guidance and help throughout the semester.</p>
+
+  <footer>
+    
+    <p>I-Ting Tsai is a CS PhD student at Cornell University.</p>
+
+    
+    <p>This is the course blog for <a href="../../index.html">CS 6120</a>, the PhD-level compilers course in the computer science department at Cornell.
+You can subscribe to <a href="../index.html">posts on the blog</a> with <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">RSS</a>.</p>
+
+  </footer>
+</article>
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>

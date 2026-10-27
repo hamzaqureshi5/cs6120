@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>CS 6120: Local Analysis &amp; Optimization</title>
+
+  <link href="../../main.css" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" href="https://www.cs.cornell.edu/courses/cs6120/2025fa/atom.xml">
+  <link rel="icon" href="../../img/favicon.ico">
+  <link rel="apple-touch-icon-precomposed" href="../../img/favicon152.png">
+  
+</head>
+<body >
+  <header>
+    <nav>
+      <h1>
+          <a href="https://www.cs.cornell.edu/courses/cs6120/2025fa">CS 6120</a>
+      </h1>
+      
+      
+      
+      <p><a href="../../schedule/index.html">
+        Schedule
+      </a></p>
+      
+      
+      
+      
+      
+      <p><a href="../../syllabus/index.html">
+        Syllabus
+      </a></p>
+      
+      
+      
+      <p><a href="../index.html">
+        Lessons
+      </a></p>
+      
+      <p><a href="https://cs6120.zulipchat.com">Zulip</a></p>
+      
+      <p><a href="https://github.com/sampsyo/cs6120/discussions">Discussions</a></p>
+      
+      
+      <p><a href="../../blog/index.html">
+        Blog
+      </a></p>
+    </nav>
+  </header>
+  <main>
+    
+<h1>
+  Lesson 3:
+  Local Analysis &amp; Optimization
+  
+</h1>
+<ul class="links">
+  
+  <li>
+    <a href="https://github.com/sampsyo/cs6120/discussions/555" class="icon discussion">discussion thread</a>
+  </li>
+  
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_6k52flbg" class="icon video">simple dead code elimination</a>
+  </li>
+  
+  <li>
+    <a href="https://vod.video.cornell.edu/media/1_i2gnhw41" class="icon video">local value numbering</a>
+  </li>
+  
+  
+  <li>
+    <a href="http:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;afs&#x2F;cs&#x2F;academic&#x2F;class&#x2F;15745-s19&#x2F;www&#x2F;lectures&#x2F;L3-Local-Opts.pdf" class="icon reading">slides from Phil Gibbons at CMU</a>
+    
+    <br>for more details and context on LVN
+    
+  </li>
+  
+  
+  <li>
+    <a href="index.html#tasks" class="icon due">tasks</a> due <strong>September 16</strong>
+  </li>
+  
+</ul>
+
+<div class="videos">
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_6k52flbg" allowfullscreen></iframe>
+  </div>
+
+
+
+  <div class="video">
+    <iframe src="https://cdnapisec.kaltura.com/p/520801/sp/52080100/embedIframeJs/uiconf_id/31230141/partner_id/520801?iframeembed=true&entry_id=1_i2gnhw41" allowfullscreen></iframe>
+  </div>
+
+
+</div>
+
+<h2 id="gist">Gist</h2>
+<h3 id="intro-simple-dce-passes">Intro &amp; Simple DCE Passes</h3>
+<p>Contrasting local vs. global vs. interprocedural analysis.</p>
+<p>Then, our first optimizations!</p>
+<ul>
+<li>Definition of dead code elimination (DCE).</li>
+<li>Globally unused instructions.
+<ul>
+<li>Derive an algorithm for deleting them.</li>
+<li>Iterating to convergence.</li>
+<li>Then implement it.</li>
+</ul>
+</li>
+<li>Locally killed instructions.
+<ul>
+<li>The limits of local reasoning: why can’t we do this globally?</li>
+<li>Derive an algorithm for removing them.</li>
+<li>Then implement that too.</li>
+</ul>
+</li>
+<li>Let’s try our new optimization pass out on the Bril benchmarks.
+<ul>
+<li>
+<p>When working on your implementations, try them on <a href="https://github.com/sampsyo/bril/blob/main/examples/test/tdce/simple.bril"><code>simple.bril</code></a>, <a href="https://github.com/sampsyo/bril/blob/main/examples/test/tdce/reassign.bril"><code>reassign.bril</code></a>, and other examples in <a href="https://github.com/sampsyo/bril/tree/main/examples/test/tdce">the DCE test directory</a> to see if they actually work.</p>
+</li>
+<li>
+<p>First, combine all your implementations into one command somehow (including iterating to convergence). Try out your pass—something like this:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>$ bril2json &lt; bench.bril | python3 tdce.py | bril2txt
+</span></code></pre>
+</li>
+<li>
+<p>Next, try using <code>wc</code> to check static code size differences:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>$ bril2json &lt; bench.bril | wc -l
+</span><span>$ bril2json &lt; bench.bril | python3 tdce.py | wc -l
+</span></code></pre>
+</li>
+<li>
+<p>Then profiling to measure dynamic instruction count:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>$ bril2json &lt; bench.bril | brili -p 5
+</span><span>$ bril2json &lt; bench.bril | python3 tdce.py | brili -p 5
+</span></code></pre>
+</li>
+</ul>
+</li>
+</ul>
+<p>You can see my implementation in <code>tdce.py</code> in <a href="https://github.com/sampsyo/bril/tree/main/examples">the examples directory</a> in the Bril repository.</p>
+<h3 id="local-value-numbering">Local Value Numbering</h3>
+<ul>
+<li>Local value numbering.
+<ul>
+<li>Consider the common thread between dead code elimination (DCE), copy propagation, and common subexpression elimination. In some compilers classes/textbooks, these are all individual optimizations.</li>
+<li>Value numbering is a general framework for understanding &amp; optimizing computations.</li>
+<li>If you can deeply understand the mystical metaphysics of value numbering, you will have gotten most of what you need to get out of this part of 6120.</li>
+</ul>
+</li>
+<li>Extending LVN.
+<ul>
+<li>LVN can subsume constant folding, copy propagation, and algebraic identities. You will need to extend it with language semantics.</li>
+<li>Write complete pseudocode for the base LVN algorithm, and work out where the “extension points” need to be to capture those optimizations.</li>
+</ul>
+</li>
+</ul>
+<p>Here’s the pseudocode from the video:</p>
+<pre style="background-color:#ffffff;color:#303030;"><code><span>table = mapping from value tuples to canonical variables,
+</span><span>  with each row numbered
+</span><span>var2num = mapping from variable names to their current
+</span><span>  value numbers (i.e., rows in table)
+</span><span>
+</span><span>for instr in block:
+</span><span>    value = (instr.op, var2num[instr.args[0]], ...)
+</span><span>
+</span><span>    if value in table:
+</span><span>        # The value has been computed before; reuse it.
+</span><span>        num, var = table[value]
+</span><span>        replace instr with copy of var
+</span><span>
+</span><span>    else:
+</span><span>        # A newly computed value.
+</span><span>        num = fresh value number
+</span><span>
+</span><span>        dest = instr.dest
+</span><span>        if instr will be overwritten later:
+</span><span>             dest = fresh variable name
+</span><span>             instr.dest = dest
+</span><span>        else:
+</span><span>             dest = instr.dest
+</span><span>
+</span><span>        table[value] = num, dest
+</span><span>
+</span><span>        for a in instr.args:
+</span><span>            replace a with table[var2num[a]].var
+</span><span>
+</span><span>    var2num[instr.dest] = num
+</span></code></pre>
+<p>You can see my implementation in <code>lvn.py</code> in <a href="https://github.com/sampsyo/bril/tree/main/examples">the examples directory</a> in the Bril repository. But seriously, don’t be tempted! You want to write your implementation without looking at mine!</p>
+<h3 id="testing-your-optimizations">Testing Your Optimizations</h3>
+<p>As part of your tasks for this lesson, you will implement your first two optimizations.
+The two main things you want your optimizations to do are:</p>
+<ol>
+<li>Not break programs.</li>
+<li>Make programs faster, most of the time.</li>
+</ol>
+<p>As with every task in this class, part of the work is checking that you have done what you set out to do—in this case, that your optimizations do those two things.
+Think carefully about how to make a convincing case for each of those criteria.</p>
+<p>One tempting methodology might be to handwrite a few small test-case Bril programs (or, worse, borrow the woefully inadequate ones sitting around in the Bril git repository), run them through your optimizations, and look at them to check whether they look right.
+This does not amount to convincing evidence (maybe you can think of a few specific reasons why).</p>
+<p>While there are many ways to be convincing, a pretty good way might be to run your optimization on <em>every single available <a href="https://capra.cs.cornell.edu/bril/tools/bench.html">Bril benchmark</a></em>,
+systematically check that it still produces the right output for at least one input,
+and collect aggregate statistics about some metric you’re interested in.
+This is a nice way to check for unexpected behavior in programs that you didn’t carefully write yourself to test the cases you’re thinking of.</p>
+<p>If this is the route you choose, you can do it however you like, I have made a simple tool that you can consider using, called <a href="https://capra.cs.cornell.edu/bril/tools/brench.html">Brench</a>.
+Brench is not very fancy; it does three things:</p>
+<ol>
+<li>It makes it easy to run a long list of inputs through several different commands. (For example, you can run a long list of Bril benchmarks through an “interpret” command and an “optimize-and-then-interpret” command.)</li>
+<li>It checks that all the commands agree on their output. (So, in our use case, it checks that optimizing the benchmark doesn’t change its output when interpreted.)</li>
+<li>It can collect a statistic from each command for comparison. (Like the number of dynamic instructions the interpreter executed, which is a pretty good metric for standard optimizations.)</li>
+</ol>
+<p>Those three things are probably what you want to do to make a convincing case for an optimization’s correctness and effectiveness, whether or not you use Brench. It’s there if you want it, but feel free to go your own way!</p>
+<h2 id="tasks">Tasks</h2>
+<ul>
+<li>Implement “trivial” dead code elimination, in which you delete instructions that are never used before they are reassigned. Remember to iterate to convergence. (This should not take you long.)</li>
+<li>Implement local value numbering. Make sure it eliminates some common subexpressions. Try pairing it with trivial dead code elimination as a post-processing step. (This might take you quite a while.)</li>
+<li>In your summary on the GitHub Discussions thread, briefly write up the evidence you have that your LVN implementation is correct and actually optimizes programs. (Hint: To be convincing, do not just use a few handcrafted test cases. One good way to do this is to run it on all the benchmarks in the Bril repository, perhaps using <a href="https://capra.cs.cornell.edu/bril/tools/brench.html">Brench</a>. But this is truly open ended; you do you!)</li>
+<li>For bonus “points,” extend your LVN implementation to optimize the trickier examples given in class.</li>
+</ul>
+
+
+  </main>
+  <footer>
+    <p><a href="https://www.cornell.edu">Cornell University</a>
+    &mdash;
+    <a href="https://www.cs.cornell.edu">Department of Computer Science</a></p>
+  </footer>
+</body>
+</html>
