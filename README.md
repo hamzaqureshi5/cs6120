@@ -48,7 +48,22 @@ If you cloned without `--recurse-submodules`, run `git submodule update --init`.
 | `REFERENCES.md` | Full citations and source links for every PDF |
 | `fetch_pdfs.sh` | Downloads all PDFs; safe to re-run |
 | `my-work/` | Your task implementations (create it) |
-| `learning/` | Roadmap, notes, and progress tracking (create it) |
+| `learning/` | Progress tracker (`progress.md`) + `next.py` status script |
+
+## Tracking progress
+
+Each lesson is split into numbered subsections (e.g. `3.3 📖 Local value numbering`), so you can study it over several sessions:
+
+- **`learning/progress.md`**: the checklist. It covers all 14 lessons plus the final project. Each lesson is split into 📖 Learn, 🛠 Task and 📄 Read items. Mark items `[x]` when done and `[~]` when in progress, and add a line to the session log at the bottom each time you study.
+- **`python3 learning/next.py`**: shows a progress bar for each lesson and your next 3 items.
+
+```
+Overall: 12/128 subsections done (9%)
+  [##########    ] 10/10 Lesson 2 — Representing Programs
+  [##--------    ]  2/10 Lesson 3 — Local Analysis & Optimization
+Up next:
+  3.3    📖 Local value numbering (LVN): the table, canonical values, common subexpressions
+```
 
 ## How to work through the course
 
